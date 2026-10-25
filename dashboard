@@ -15,4 +15,5 @@ else
     exit 1
 fi
 
-exec "$UV_CMD" run --with textual python3 "/home/letuan/make_Kubuntu_better/cyber_dashboard.py" "$@"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec "$UV_CMD" run --with textual python3 "$SCRIPT_DIR/cyber_dashboard.py" "$@"

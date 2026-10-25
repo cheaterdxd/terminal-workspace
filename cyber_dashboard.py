@@ -41,8 +41,9 @@ except ImportError:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     import mascot_engine
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TASKS_FILE = os.path.expanduser("~/.workspace_tasks.json")
-QUOTES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "quotes.json")
+QUOTES_FILE = os.path.join(BASE_DIR, "quotes.json")
 
 FEEDS = [
     {
@@ -1603,7 +1604,7 @@ class CyberDashboardApp(App):
         # 10. Đổi hình nền 4K: "wall: whitesur", "bg: sonoma"
         if q.lower().startswith("wall:") or q.lower().startswith("bg:") or q.lower().startswith("wallpaper:"):
             wall_name = re.sub(r"^(wall|bg|wallpaper):\s*", "", q, flags=re.IGNORECASE).strip()
-            script_path = "/home/letuan/make_Kubuntu_better/set_wallpaper.sh"
+            script_path = os.path.join(BASE_DIR, "set_wallpaper.sh")
             if os.path.exists(script_path):
                 self.notify(f"Đang đổi hình nền sang: {wall_name}...", title="Wallpaper")
                 def wall_worker():
@@ -1614,7 +1615,7 @@ class CyberDashboardApp(App):
         # 11. Đổi icon theme: "icon: colloid", "icon: tela", "icon: breeze"
         if q.lower().startswith("icon:"):
             icon_name = re.sub(r"^icon:\s*", "", q, flags=re.IGNORECASE).strip()
-            script_path = "/home/letuan/make_Kubuntu_better/toggle_icon_style.sh"
+            script_path = os.path.join(BASE_DIR, "toggle_icon_style.sh")
             if os.path.exists(script_path):
                 self.notify(f"Đang đổi icon sang: {icon_name}...", title="Icon Style")
                 def icon_worker():
@@ -1625,7 +1626,7 @@ class CyberDashboardApp(App):
         # 12. Quản lý Autostart: "autostart: workspace", "autostart: disable"
         if q.lower().startswith("autostart:"):
             as_mode = re.sub(r"^autostart:\s*", "", q, flags=re.IGNORECASE).strip()
-            script_path = "/home/letuan/make_Kubuntu_better/toggle_autostart.sh"
+            script_path = os.path.join(BASE_DIR, "toggle_autostart.sh")
             if os.path.exists(script_path):
                 self.notify(f"Đang thiết lập autostart: {as_mode}...", title="Autostart")
                 def as_worker():

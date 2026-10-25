@@ -21,7 +21,7 @@ check_status() {
         return 1
     fi
 
-    if grep -q "dashboard" "$AUTOSTART_FILE" && ! grep -q "make_Kubuntu_better/workspace" "$AUTOSTART_FILE"; then
+    if grep -q "dashboard" "$AUTOSTART_FILE" && ! grep -q "workspace" "$AUTOSTART_FILE"; then
         echo " [Trạng thái]: Đang BẬT -> Chế độ: Dashboard Độc Lập (Toàn màn hình)"
         return 0
     else
@@ -39,7 +39,7 @@ Type=Application
 Name=Cyber Workspace
 GenericName=Workspace & Cyber Dashboard
 Comment=Tự động khởi động Cyber Workspace khi đăng nhập Kubuntu
-Exec=/home/letuan/make_Kubuntu_better/workspace
+Exec=$HOME/.local/bin/workspace
 Icon=utilities-terminal
 Terminal=false
 Categories=Development;
@@ -62,7 +62,7 @@ Type=Application
 Name=Cyber Threat Dashboard
 GenericName=Threat Intel & Personal Dashboard
 Comment=Tự động mở bảng tin Cyber Threat Dashboard khi đăng nhập Kubuntu
-Exec=konsole -e /home/letuan/make_Kubuntu_better/dashboard
+Exec=konsole -e $HOME/.local/bin/dashboard
 Icon=utilities-system-monitor
 Terminal=false
 Categories=Development;

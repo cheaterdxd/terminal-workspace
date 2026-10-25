@@ -1,13 +1,13 @@
-# Kubuntu Post-Install & Development Environment Setup
+# Terminal Workspace
 
-Hệ thống đã được thiết lập giao diện sáng mềm mại và cài đặt đầy đủ tất cả các ứng dụng phục vụ công việc của bạn.
+Không gian làm việc đầu cuối thông minh (TUI Workspace), tích hợp Threat Intelligence, động cơ chống trì hoãn (Anti-Inertia Kickstart), linh vật Kaomoji và bộ công cụ tinh gọn trên Kubuntu / KDE Plasma.
 
 ## ⚡ Cài Đặt Nhanh 1-Chạm (Quick Install)
 
 Chỉ cần clone repository và chạy lệnh cài đặt:
 ```bash
-git clone https://github.com/<username>/make_Kubuntu_better.git
-cd make_Kubuntu_better
+git clone https://github.com/<username>/terminal-workspace.git
+cd terminal-workspace
 ./install.sh
 ```
 Script sẽ tự động cấu hình môi trường Python UV, Textual UI, profile Konsole chia đôi tab, đăng ký ứng dụng vào KDE Menu và kích hoạt tự bung Workspace khi mở máy!

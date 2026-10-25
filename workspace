@@ -3,6 +3,7 @@
 # Launcher Không Gian Làm Việc Cyber Workspace (KDE Konsole Native Split)
 # ==============================================================================
 set -e
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Đảm bảo display server đã sẵn sàng (phòng khi chạy từ autostart lúc vừa boot)
 for i in {1..30}; do
@@ -15,11 +16,11 @@ done
 # Đảm bảo profile CyberDashboard luôn được cấu hình đúng chuẩn Konsole
 PROFILE_DIR="$HOME/.local/share/konsole"
 mkdir -p "$PROFILE_DIR"
-cat << 'EOF' > "$PROFILE_DIR/CyberDashboard.profile"
+cat << EOF > "$PROFILE_DIR/CyberDashboard.profile"
 [General]
 Name=CyberDashboard
 Parent=FALLBACK/
-Command=/home/letuan/make_Kubuntu_better/dashboard
+Command=$SCRIPT_DIR/dashboard
 EOF
 
 # ------------------------------------------------------------------------------
@@ -91,4 +92,4 @@ fi
 # ------------------------------------------------------------------------------
 # Fallback: Mở dashboard độc lập nếu không có Konsole
 # ------------------------------------------------------------------------------
-exec "/home/letuan/make_Kubuntu_better/dashboard" "$@"
+exec "$SCRIPT_DIR/dashboard" "$@"

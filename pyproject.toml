@@ -1,7 +1,7 @@
 [project]
-name = "make-kubuntu-better"
+name = "terminal-workspace"
 version = "1.0.0"
-description = "All-in-one Cyber Threat Intel Dashboard, Anti-Inertia Workspace & Kubuntu Desktop Enhancements"
+description = "Terminal Workspace: All-in-one Cyber Threat Intel Dashboard, Anti-Inertia Workflow & Desktop Enhancements"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -24,8 +24,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/letuan/make_Kubuntu_better"
-Repository = "https://github.com/letuan/make_Kubuntu_better.git"
+Homepage = "https://github.com/letuan/terminal-workspace"
+Repository = "https://github.com/letuan/terminal-workspace.git"
 
 [build-system]
 requires = ["hatchling"]
