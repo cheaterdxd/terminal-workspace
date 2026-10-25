@@ -1,0 +1,62 @@
+[
+  {
+    "quote": "Make each program do one thing well.",
+    "author": "Doug McIlroy",
+    "context": "focus_start",
+    "note": "Triết lý Unix: Tập trung làm tốt một việc duy nhất."
+  },
+  {
+    "quote": "Simplicity is prerequisite for reliability.",
+    "author": "Rob Pike",
+    "context": "focus_start",
+    "note": "Nguyên lý thiết kế: Đơn giản là điều kiện tiên quyết cho độ tin cậy."
+  },
+  {
+    "quote": "Controlling complexity is the essence of computer programming.",
+    "author": "Brian Kernighan",
+    "context": "focus_start",
+    "note": "Tập trung tinh giản và làm chủ độ phức tạp của bài toán."
+  },
+  {
+    "quote": "Complexity is the worst enemy of security.",
+    "author": "Bruce Schneier",
+    "context": "focus_start",
+    "note": "Giữ mọi thứ rõ ràng, mạch lạc để hạn chế rủi ro và lỗi ngầm."
+  },
+  {
+    "quote": "You can't trust code that you did not totally create yourself.",
+    "author": "Ken Thompson",
+    "context": "focus_start",
+    "note": "Luôn kiểm chứng kỹ lưỡng các phụ thuộc và thư viện bên thứ ba."
+  },
+  {
+    "quote": "Talk is cheap. Show me the code.",
+    "author": "Linus Torvalds",
+    "context": "focus_done",
+    "note": "Kỷ luật thực thi: Giá trị nằm ở kết quả cụ thể đã hoàn thành."
+  },
+  {
+    "quote": "Security is a process, not a product.",
+    "author": "Bruce Schneier",
+    "context": "wrapup",
+    "note": "Bảo mật và chất lượng công việc là một quy trình cải tiến liên tục."
+  },
+  {
+    "quote": "Given enough eyeballs, all bugs are shallow.",
+    "author": "Eric S. Raymond",
+    "context": "wrapup",
+    "note": "Rà soát cẩn thận cuối ngày để nhận diện sớm các thiếu sót."
+  },
+  {
+    "quote": "If you can't measure it, you can't manage it.",
+    "author": "Dan Geer",
+    "context": "wrapup",
+    "note": "Đo lường và ghi nhận tiến độ là chìa khóa để duy trì hiệu suất."
+  },
+  {
+    "quote": "The only truly secure system is one that is powered off.",
+    "author": "Gene Spafford",
+    "context": "wrapup",
+    "note": "Luôn duy trì tư duy phòng thủ chủ động và cảnh giác cao độ."
+  }
+]

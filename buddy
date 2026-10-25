@@ -1,0 +1,230 @@
+#!/usr/bin/env python3
+"""
+Buddy - Terminal Companion & Mascot CLI for Kubuntu
+Linh vật Kaomoji đồng hành tương tác ngay trên Terminal.
+"""
+
+import sys
+import os
+import time
+import argparse
+import random
+
+# Import Mascot Engine
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, SCRIPT_DIR)
+import mascot_engine
+
+TASKS_FILE = os.path.expanduser("~/.workspace_tasks.json")
+
+# ANSI Color Codes
+CYAN = "\033[1;36m"
+GREEN = "\033[1;32m"
+YELLOW = "\033[1;33m"
+MAGENTA = "\033[1;35m"
+BLUE = "\033[1;34m"
+WHITE = "\033[1;37m"
+DIM = "\033[2m"
+RESET = "\033[0m"
+BOLD = "\033[1m"
+
+def get_tasks_summary() -> tuple[int, int, int]:
+    """Trả về (total, done, in_progress) từ workspace tasks."""
+    if not os.path.exists(TASKS_FILE):
+        return 0, 0, 0
+    try:
+        import json
+        with open(TASKS_FILE, "r", encoding="utf-8") as f:
+            tasks = json.load(f)
+            if isinstance(tasks, list):
+                total = len(tasks)
+                done = sum(1 for t in tasks if t.get("status") == "done")
+                in_prog = sum(1 for t in tasks if t.get("status") == "in_progress")
+                return total, done, in_prog
+    except Exception:
+        pass
+    return 0, 0, 0
+
+def print_speech_bubble(face: str, message: str, subtitle: str = None, name: str = "Kubi"):
+    """In khung thoại Kaomoji rực rỡ trên terminal."""
+    max_w = min(len(message) + 4, 64)
+    max_w = max(max_w, 36)
+    
+    top = f"{CYAN}╭" + "─" * (max_w - 2) + f"╮{RESET}"
+    bot = f"{CYAN}╰" + "─" * (max_w - 2) + f"╯{RESET}"
+    
+    print(top)
+    print(f"{CYAN}│{RESET} {WHITE}{message:<{max_w-4}}{RESET} {CYAN}│{RESET}")
+    if subtitle:
+        print(f"{CYAN}│{RESET} {DIM}{subtitle:<{max_w-4}}{RESET} {CYAN}│{RESET}")
+    print(bot)
+    print(f"        {CYAN}╰─{RESET} {MAGENTA}{face}{RESET} {BOLD}{CYAN}{name}{RESET}\n")
+
+def cmd_hello(style: str = None):
+    """Hiển thị sân khấu Pixel Mascot sống động kèm tiến độ công việc."""
+    import shutil
+    try:
+        from rich.console import Console
+        console = Console()
+    except ImportError:
+        console = None
+
+    cols = shutil.get_terminal_size((60, 20)).columns
+    stage_w = min(cols - 2, 70)
+    habitat = mascot_engine.MascotHabitat(stage_width=stage_w, style=style)
+    
+    total, done, in_prog = get_tasks_summary()
+    if total > 0:
+        habitat.current_msg = f"Tiến độ hôm nay: {done}/{total} việc hoàn tất! Tiếp tục giữ vững phong độ nhé!"
+
+    rendered = habitat.render(stage_w)
+    if console:
+        console.print(rendered)
+    else:
+        print(rendered)
+
+    if total > 0:
+        print(f"  {CYAN}📋 Công việc hôm nay:{RESET} {GREEN}{done}/{total} đã xong{RESET} {DIM}({in_prog} đang làm){RESET}\n")
+    else:
+        print(f"  {CYAN}✨ Sẵn sàng làm việc cùng bạn trên Kubuntu Terminal!{RESET}\n")
+
+def cmd_style(style_name: str):
+    """Đổi phong cách linh vật pixel."""
+    style_name = (style_name or "").lower().strip()
+    if style_name in ("cat", "robo", "slime", "dino", "kaomoji"):
+        mascot_engine.save_mascot_config({"style": style_name})
+        print(f"\n{GREEN}✔ Đã đổi phong cách linh vật sang: {BOLD}{style_name.upper()}{RESET}\n")
+        cmd_hello(style=style_name)
+    else:
+        print(f"\n{YELLOW}Phong cách không hợp lệ! Vui lòng chọn một trong các kiểu pixel:{RESET}")
+        print(f"  • {BOLD}cat{RESET}: Mèo máy Cyber Neko pixel (Mặc định)")
+        print(f"  • {BOLD}robo{RESET}: Robot 8-bit Cyber Bot tương lai")
+        print(f"  • {BOLD}slime{RESET}: Bé Slime RPG retro núng nính")
+        print(f"  • {BOLD}dino{RESET}: Khủng long pixel mini tinh nghịch")
+        print(f"  • {BOLD}kaomoji{RESET}: Mặt chữ cổ điển ( ˶•ᴗ•˶ )\n")
+
+def cmd_cheer():
+    """Cổ vũ tinh thần làm việc, fix bug."""
+    cheers = [
+        "Bug chỉ là tính năng chưa được hiểu đúng thôi! Bạn giải quyết được mà! (ง •̀_•́)ง",
+        "Hít một hơi thật sâu, bình tĩnh đọc lại log trace nhé! Tôi tin ở bạn! ٩( 'ω' )و",
+        "Không có bug nào là bất tử trước một lập trình viên kiên trì! Cố lên nhé! ( ๑‾̀◡‾́)و",
+        "Uống một ngụm nước, nghỉ mắt 2 phút rồi quay lại 'bắt gọn' bug nào! ☕( ˶•ᴗ•˶ )",
+        "Bạn đang làm rất tốt! Từng dòng code đều đưa bạn đến gần đích hơn! (★^O^★)"
+    ]
+    face = mascot_engine.get_random_face("celebrate")
+    msg = random.choice(cheers)
+    print_speech_bubble(face, msg, subtitle="✨ Tiếp thêm năng lượng lập trình")
+
+def cmd_say(message: str, mood: str = "happy"):
+    """Linh vật nói một câu tùy chọn."""
+    face = mascot_engine.get_random_face(mood)
+    print_speech_bubble(face, message)
+
+def cmd_focus(minutes: int = 25):
+    """Đếm giờ Focus cùng linh vật ngay trong terminal."""
+    total_sec = minutes * 60
+    rem = total_sec
+    
+    print(f"\n{BOLD}{CYAN}⏱ BẮT ĐẦU PHIÊN FOCUS {minutes} PHÚT CÙNG KUBI{RESET}")
+    print(f"{DIM}Nhấn Ctrl+C để kết thúc sớm.{RESET}\n")
+    
+    try:
+        while rem > 0:
+            m = rem // 60
+            s = rem % 60
+            pct = int((total_sec - rem) / total_sec * 100)
+            bar_len = 20
+            filled = int(bar_len * pct / 100)
+            bar = f"{GREEN}{'━' * filled}{DIM}{'─' * (bar_len - filled)}{RESET}"
+            
+            # Đổi biểu cảm theo nhịp
+            face = "🎧( •̀_•́ )" if rem % 4 >= 2 else "💻( •̀ω•́ )"
+            
+            sys.stdout.write(f"\r  {MAGENTA}{face}{RESET}  {bar} {BOLD}{CYAN}{m:02d}:{s:02d}{RESET} ({pct}%)  ")
+            sys.stdout.flush()
+            time.sleep(1)
+            rem -= 1
+            
+        print(f"\n\n{GREEN}🎉 HOÀN THÀNH PHIÊN FOCUS {minutes} PHÚT!{RESET}")
+        cmd_say(mascot_engine.get_dialogue("focus_done"), mood="celebrate")
+    except KeyboardInterrupt:
+        print(f"\n\n{YELLOW}Đã dừng phiên Focus sớm.{RESET}")
+
+def cmd_watch(style: str = None):
+    """Mini Desk Pet chạy trực tiếp trên terminal với sân khấu đi lại tự nhiên."""
+    import shutil
+    try:
+        from rich.console import Console
+        console = Console()
+    except ImportError:
+        console = None
+
+    cols = shutil.get_terminal_size((60, 20)).columns
+    stage_w = min(cols - 2, 70)
+    habitat = mascot_engine.MascotHabitat(stage_width=stage_w, style=style)
+
+    print(f"\n{CYAN}🐾 Kubi đang đi dạo trên bàn làm việc cùng bạn...{RESET} {DIM}(Ctrl+C để dừng){RESET}\n")
+    print("\n" * 9)
+    
+    try:
+        while True:
+            cols = shutil.get_terminal_size((60, 20)).columns
+            stage_w = min(cols - 2, 70)
+            habitat.tick(stage_w)
+            rendered = habitat.render(stage_w)
+            
+            sys.stdout.write("\033[10A\r")
+            if console:
+                console.print(rendered)
+            else:
+                for line in rendered.split("\n"):
+                    sys.stdout.write(f"\033[2K{line}\n")
+            sys.stdout.flush()
+            time.sleep(1.2)
+    except KeyboardInterrupt:
+        print(f"\n\n  ( ＾◡＾)っ Tạm biệt bạn nhé! Chúc một ngày năng suất!\n")
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="🐾 Kubi - Pixel & Kaomoji Mascot & Companion for Kubuntu"
+    )
+    subparsers = parser.add_subparsers(dest="command", help="Lệnh linh vật")
+    
+    # Subcommands
+    hello_parser = subparsers.add_parser("hello", help="Chào hỏi và xem sân khấu pixel")
+    hello_parser.add_argument("--style", type=str, help="Kiểu pixel: cat, robo, slime, dino, kaomoji")
+
+    style_parser = subparsers.add_parser("style", help="Đổi phong cách pixel: cat, robo, slime, dino, kaomoji")
+    style_parser.add_argument("name", type=str, nargs="?", default="cat", help="Tên kiểu: cat, robo, slime, dino, kaomoji")
+
+    subparsers.add_parser("cheer", help="Cổ vũ tinh thần khi fix bug")
+    
+    watch_parser = subparsers.add_parser("watch", help="Bật chế độ Mini Desk Pet đi dạo trên terminal")
+    watch_parser.add_argument("--style", type=str, help="Kiểu pixel: cat, robo, slime, dino, kaomoji")
+    
+    focus_parser = subparsers.add_parser("focus", help="Đếm giờ Focus cùng Kubi")
+    focus_parser.add_argument("minutes", type=int, nargs="?", default=25, help="Số phút tập trung (mặc định 25)")
+    
+    say_parser = subparsers.add_parser("say", help="Kubi nói câu bất kỳ")
+    say_parser.add_argument("message", type=str, help="Nội dung muốn Kubi nói")
+    say_parser.add_argument("--mood", type=str, default="happy", help="Tâm trạng (idle, focus, celebrate...)")
+    
+    args = parser.parse_args()
+    
+    if args.command == "style":
+        cmd_style(args.name)
+    elif args.command == "cheer":
+        cmd_cheer()
+    elif args.command == "watch":
+        cmd_watch(style=args.style)
+    elif args.command == "focus":
+        cmd_focus(args.minutes)
+    elif args.command == "say":
+        cmd_say(args.message, args.mood)
+    else:
+        style = getattr(args, "style", None)
+        cmd_hello(style=style)
+
+if __name__ == "__main__":
+    main()

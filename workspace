@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# Launcher Không Gian Làm Việc Cyber Workspace (KDE Konsole Native Split)
+# ==============================================================================
+set -e
+
+# Đảm bảo display server đã sẵn sàng (phòng khi chạy từ autostart lúc vừa boot)
+for i in {1..30}; do
+    if [ -n "$WAYLAND_DISPLAY" ] || [ -n "$DISPLAY" ]; then
+        break
+    fi
+    sleep 0.2
+done
+
+# Đảm bảo profile CyberDashboard luôn được cấu hình đúng chuẩn Konsole
+PROFILE_DIR="$HOME/.local/share/konsole"
+mkdir -p "$PROFILE_DIR"
+cat << 'EOF' > "$PROFILE_DIR/CyberDashboard.profile"
+[General]
+Name=CyberDashboard
+Parent=FALLBACK/
+Command=/home/letuan/make_Kubuntu_better/dashboard
+EOF
+
+# ------------------------------------------------------------------------------
+# Trường hợp 1: Đang chạy bên trong Konsole (Tự động chia tab hiện tại)
+# ------------------------------------------------------------------------------
+if [ -n "$KONSOLE_DBUS_SERVICE" ]; then
+    SERVICE="$KONSOLE_DBUS_SERVICE"
+    WINDOW="${KONSOLE_DBUS_WINDOW:-/Windows/1}"
+    WIN_NUM="${WINDOW##*/}"
+    MAIN_WIN="/konsole/MainWindow_${WIN_NUM}"
+    
+    if ! qdbus6 "$SERVICE" "$MAIN_WIN" >/dev/null 2>&1; then
+        MAIN_WIN="/konsole/MainWindow_1"
+    fi
+
+    # 1. Lưu lại ID session hiện tại của bạn
+    ORIG_SESSION=$(qdbus6 "$SERVICE" "$WINDOW" org.kde.konsole.Window.currentSession 2>/dev/null || echo "1")
+
+    # 2. Tạo tab mới chạy Profile CyberDashboard
+    qdbus6 "$SERVICE" "$WINDOW" org.kde.konsole.Window.newSession "CyberDashboard" "$PWD" >/dev/null 2>&1
+    sleep 0.15
+
+    # 3. QUAN TRỌNG: Chuyển tiêu điểm trở lại tab ban đầu
+    # (Vì Konsole tự động nhảy sang tab mới tạo ở cuối cùng, nếu không chuyển về thì split-with-next-tab sẽ không có tab tiếp theo để ghép)
+    qdbus6 "$SERVICE" "$WINDOW" org.kde.konsole.Window.setCurrentSession "$ORIG_SESSION" >/dev/null 2>&1
+    sleep 0.1
+
+    # 4. Ghép tab Dashboard (kế bên) sang pane bên phải của tab hiện tại
+    qdbus6 "$SERVICE" "$MAIN_WIN" org.kde.KMainWindow.activateAction split-view-left-right-next-tab >/dev/null 2>&1
+    sleep 0.1
+
+    # 5. Đưa con trỏ focus về lại pane bên trái để bạn tiếp tục gõ lệnh
+    qdbus6 "$SERVICE" "$MAIN_WIN" org.kde.KMainWindow.activateAction focus-view-left >/dev/null 2>&1
+    exit 0
+fi
+
+# ------------------------------------------------------------------------------
+# Trường hợp 2: Chạy từ ngoài Konsole (KRunner, Desktop Menu, Autostart...)
+# ------------------------------------------------------------------------------
+if command -v konsole >/dev/null 2>&1; then
+    konsole --separate &
+    KPID=$!
+
+    SERVICE="org.kde.konsole-$KPID"
+    # Chờ Konsole và cửa sổ DBus sẵn sàng (tối đa 6 giây nếu đang boot máy)
+    for i in {1..60}; do
+        if qdbus6 "$SERVICE" /Windows/1 >/dev/null 2>&1; then
+            break
+        fi
+        sleep 0.1
+    done
+
+    sleep 0.3
+    ORIG_SESSION=$(qdbus6 "$SERVICE" /Windows/1 org.kde.konsole.Window.currentSession 2>/dev/null || echo "1")
+    qdbus6 "$SERVICE" /Windows/1 org.kde.konsole.Window.newSession "CyberDashboard" "$HOME" >/dev/null 2>&1
+    sleep 0.2
+    qdbus6 "$SERVICE" /Windows/1 org.kde.konsole.Window.setCurrentSession "$ORIG_SESSION" >/dev/null 2>&1
+    sleep 0.15
+    qdbus6 "$SERVICE" /konsole/MainWindow_1 org.kde.KMainWindow.activateAction split-view-left-right-next-tab >/dev/null 2>&1
+    sleep 0.15
+    qdbus6 "$SERVICE" /konsole/MainWindow_1 org.kde.KMainWindow.activateAction focus-view-left >/dev/null 2>&1
+    
+    if [ "$1" = "--wait" ]; then
+        wait "$KPID" 2>/dev/null || true
+    fi
+    exit 0
+fi
+
+# ------------------------------------------------------------------------------
+# Fallback: Mở dashboard độc lập nếu không có Konsole
+# ------------------------------------------------------------------------------
+exec "/home/letuan/make_Kubuntu_better/dashboard" "$@"

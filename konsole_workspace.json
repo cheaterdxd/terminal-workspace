@@ -1,0 +1,12 @@
+{
+  "Orientation": "Horizontal",
+  "Widgets": [
+    {
+      "SessionRestoreId": 0
+    },
+    {
+      "Profile": "CyberDashboard",
+      "SessionRestoreId": 0
+    }
+  ]
+}

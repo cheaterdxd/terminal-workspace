@@ -1,0 +1,32 @@
+[project]
+name = "make-kubuntu-better"
+version = "1.0.0"
+description = "All-in-one Cyber Threat Intel Dashboard, Anti-Inertia Workspace & Kubuntu Desktop Enhancements"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Le Tuan" }
+]
+keywords = [
+    "kubuntu",
+    "kde-plasma",
+    "textual",
+    "tui",
+    "threat-intel",
+    "cyber-security",
+    "dashboard",
+    "pomodoro",
+    "workspace"
+]
+dependencies = [
+    "textual>=0.70.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/letuan/make_Kubuntu_better"
+Repository = "https://github.com/letuan/make_Kubuntu_better.git"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
