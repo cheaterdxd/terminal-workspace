@@ -1,0 +1,84 @@
+{
+  "settings": {
+    "timeout": 90.0,
+    "agy_effort": "low",
+    "clis": ["agy", "omp", "pi", "codex"]
+  },
+  "prompts": {
+    "general_qa": [
+      "Bạn là một trợ lý AI thông minh trên hệ điều hành Kubuntu.",
+      "Hãy trả lời câu hỏi sau của người dùng bằng tiếng Việt chi tiết, mạch lạc, chính xác và có định dạng Markdown đẹp:",
+      "",
+      "Câu hỏi: {query}"
+    ],
+    "article_qa": [
+      "Người dùng có câu hỏi về bài viết an ninh mạng sau:",
+      "Yêu cầu: {query}",
+      "",
+      "Thông tin bài viết đính kèm:",
+      "Tiêu đề: {title}",
+      "Nguồn: {vendor}",
+      "Mô tả: {desc}",
+      "Link: {link}",
+      "",
+      "Hãy trả lời bằng tiếng Việt chuyên nghiệp, súc tích."
+    ],
+    "summary": [
+      "Bạn là một chuyên gia an ninh mạng cao cấp. Hãy đọc thông tin bài viết sau và tóm tắt bằng tiếng Việt thật súc tích, chuẩn xác kỹ thuật:",
+      "- Bản chất lỗ hổng / sự cố (nêu rõ mã CVE nếu có)",
+      "- Mức độ tác động & đối tượng / hệ thống bị ảnh hưởng",
+      "- Khuyến nghị phòng thủ / vá lỗi cho quản trị viên và lập trình viên",
+      "",
+      "Tiêu đề: {title}",
+      "Nguồn: {vendor}",
+      "Mô tả: {desc}",
+      "Link: {link}"
+    ],
+    "deep_analysis": [
+      "Hãy phân tích kỹ thuật an ninh mạng chuyên sâu cho bài viết sau bằng tiếng Việt theo các mục rõ ràng:",
+      "1. Vector tấn công & Cơ chế khai thác kỹ thuật",
+      "2. Bề mặt tấn công & Hệ thống bị ảnh hưởng",
+      "3. Dấu hiệu nhận biết (IoC / Artifacts) nếu có",
+      "4. Biện pháp rà soát và khắc phục (Remediation)",
+      "",
+      "Tiêu đề: {title}",
+      "Nguồn: {vendor}",
+      "Mô tả: {desc}",
+      "Link: {link}"
+    ],
+    "kickstart": [
+      "Bạn là chuyên gia tâm lý học hành vi và năng suất lao động. Người dùng đang bị trì hoãn và không thể bắt tay vào làm công việc này:",
+      "\"{task}\"",
+      "",
+      "Hãy phân rã công việc này thành đúng 3 bước hành động SIÊU NHỎ (Micro-steps) theo nguyên lý năng lượng kích hoạt thấp (Low Activation Energy):",
+      "- Bước 1 (Micro-Step 0 - CỰC KỲ DỄ, làm xong trong DƯỚI 2 PHÚT, chỉ là hành động khởi động vật lý không cần suy nghĩ sâu. Ví dụ: Mở file, tạo thư mục, gõ dòng đầu tiên).",
+      "- Bước 2 (Làm trong 5 phút tiếp theo để tạo đà quán tính).",
+      "- Bước 3 (Bắt đầu nội dung chính khi đã vào guồng Flow state).",
+      "",
+      "YÊU CẦU: Trả về duy nhất JSON hợp lệ, không giải thích gì thêm, định dạng:",
+      "{",
+      "  \"step1\": \"Mô tả bước 1 (< 2 phút)\",",
+      "  \"step2\": \"Mô tả bước 2 (5 phút)\",",
+      "  \"step3\": \"Mô tả bước 3\",",
+      "  \"encouragement\": \"Lời động viên ngắn gọn, truyền cảm hứng hành động\"",
+      "}"
+    ],
+    "tomorrow_plan": [
+      "Bạn là chuyên gia cố vấn năng suất lao động và quản lý thời gian. Người dùng muốn lên kế hoạch làm việc cho ngày mai với mục tiêu:",
+      "\"{goal}\"",
+      "",
+      "Hãy đề xuất 3 đến 4 công việc trọng tâm nhất cho ngày mai (Most Important Tasks):",
+      "- Mỗi việc phải ngắn gọn, cụ thể, hành động được ngay (Actionable).",
+      "- Gắn tag phân loại phù hợp (ví dụ: DEV, SEC, SYS, DOC, STUDY, PLAN...).",
+      "",
+      "YÊU CẦU BẮT BUỘC: Trả về duy nhất định dạng JSON hợp lệ, không có markdown phụ hay lời dẫn, định dạng:",
+      "{",
+      "  \"items\": [",
+      "    {\"tag\": \"DEV\", \"title\": \"Nội dung việc 1\"},",
+      "    {\"tag\": \"SEC\", \"title\": \"Nội dung việc 2\"}",
+      "  ],",
+      "  \"advice\": \"Lời khuyên ngắn gọn tạo động lực cho ngày mai\"",
+      "}"
+    ]
+  }
+}

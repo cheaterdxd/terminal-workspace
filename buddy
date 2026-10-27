@@ -11,11 +11,24 @@ import argparse
 import random
 
 # Import Mascot Engine
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
 import mascot_engine
 
 TASKS_FILE = os.path.expanduser("~/.workspace_tasks.json")
+PLAN_FILE = os.path.expanduser("~/.workspace_tomorrow_plan.json")
+
+def get_tomorrow_plan() -> list[dict]:
+    """Đọc danh sách kế hoạch ngày mai."""
+    if not os.path.exists(PLAN_FILE):
+        return []
+    try:
+        import json
+        with open(PLAN_FILE, "r", encoding="utf-8") as f:
+            plan = json.load(f)
+            return plan if isinstance(plan, list) else []
+    except Exception:
+        return []
 
 # ANSI Color Codes
 CYAN = "\033[1;36m"
@@ -83,10 +96,73 @@ def cmd_hello(style: str = None):
     else:
         print(rendered)
 
+    plan_items = get_tomorrow_plan()
+    plan_str = f" {CYAN}│ Ngày mai: {len(plan_items)} việc dự kiến{RESET}" if plan_items else ""
     if total > 0:
-        print(f"  {CYAN}📋 Công việc hôm nay:{RESET} {GREEN}{done}/{total} đã xong{RESET} {DIM}({in_prog} đang làm){RESET}\n")
+        print(f"  {CYAN}📋 Công việc hôm nay:{RESET} {GREEN}{done}/{total} đã xong{RESET} {DIM}({in_prog} đang làm){RESET}{plan_str}\n")
     else:
-        print(f"  {CYAN}✨ Sẵn sàng làm việc cùng bạn trên Kubuntu Terminal!{RESET}\n")
+        if plan_items:
+            print(f"  {CYAN}✨ Bạn đã có {len(plan_items)} việc dự kiến cho ngày mai! (Gõ 'buddy plan' để xem){RESET}\n")
+        else:
+            print(f"  {CYAN}✨ Sẵn sàng làm việc cùng bạn trên Kubuntu Terminal!{RESET}\n")
+
+def cmd_plan():
+    """Xem danh sách kế hoạch ngày mai cùng Kubi."""
+    plan_items = get_tomorrow_plan()
+    if not plan_items:
+        face = mascot_engine.get_random_face("idle")
+        print_speech_bubble(face, "Chưa có kế hoạch nào cho ngày mai!", subtitle="💡 Gõ 'dashboard' hoặc lệnh 'plan: ...' để lên lịch nhé!")
+        return
+
+    face = mascot_engine.get_random_face("celebrate")
+    print_speech_bubble(face, f"Bạn đã chuẩn bị sẵn {len(plan_items)} việc cho ngày mai!", subtitle="📅 Kế hoạch làm việc ngày mai (Tomorrow's Plan)")
+    print(f"  {BOLD}{CYAN}Danh sách công việc dự kiến:{RESET}")
+    for item in plan_items:
+        p_id = item.get("id", 0)
+        p_tag = item.get("tag", "PLAN")
+        p_title = item.get("title", "")
+        print(f"    {DIM}#{p_id:02d}{RESET}  {BLUE}[{p_tag}]{RESET} {WHITE}{p_title}{RESET}")
+    print(f"\n  {DIM}💡 Mẹo: Mở dashboard bấm phím [m] hoặc [b] để nạp vào ngày mới.{RESET}\n")
+
+def cmd_log():
+    """Xem nhật ký làm việc gần nhất từ ~/work_logs/."""
+    log_dir = os.path.expanduser("~/work_logs")
+    if not os.path.exists(log_dir):
+        face = mascot_engine.get_random_face("idle")
+        print_speech_bubble(face, "Chưa có nhật ký nào được lưu!", subtitle="💡 Bấm 'w' trong dashboard để xuất nhật ký ngày nhé!")
+        return
+
+    files = sorted([f for f in os.listdir(log_dir) if f.startswith("daily_") and f.endswith(".md")], reverse=True)
+    if not files:
+        face = mascot_engine.get_random_face("idle")
+        print_speech_bubble(face, "Thư mục ~/work_logs chưa có file nhật ký!", subtitle="💡 Bấm 'w' trong dashboard để xuất nhật ký ngày nhé!")
+        return
+
+    latest = files[0]
+    filepath = os.path.join(log_dir, latest)
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            content = f.read()
+        face = mascot_engine.get_random_face("celebrate")
+        print_speech_bubble(face, f"Nhật ký làm việc ngày: {latest[6:-3]}", subtitle=f"📁 {filepath} ({len(files)} ngày đã lưu)")
+        for line in content.splitlines():
+            if line.startswith("# "):
+                print(f"{BOLD}{CYAN}{line}{RESET}")
+            elif line.startswith("## "):
+                print(f"\n{BOLD}{YELLOW}{line}{RESET}")
+            elif line.startswith("### "):
+                print(f"{BOLD}{GREEN}{line}{RESET}")
+            elif line.startswith("- [x]"):
+                print(f"  {GREEN}✓{RESET} {line[5:].strip()}")
+            elif line.startswith("- [ ]"):
+                print(f"  {YELLOW}•{RESET} {line[5:].strip()}")
+            elif line.startswith(">"):
+                print(f"  {DIM}{line}{RESET}")
+            else:
+                print(f"  {line}")
+        print()
+    except Exception as e:
+        print(f"{YELLOW}Lỗi đọc file: {e}{RESET}")
 
 def cmd_style(style_name: str):
     """Đổi phong cách linh vật pixel."""
@@ -209,6 +285,9 @@ def main():
     say_parser = subparsers.add_parser("say", help="Kubi nói câu bất kỳ")
     say_parser.add_argument("message", type=str, help="Nội dung muốn Kubi nói")
     say_parser.add_argument("--mood", type=str, default="happy", help="Tâm trạng (idle, focus, celebrate...)")
+    subparsers.add_parser("plan", help="Xem kế hoạch làm việc cho ngày mai")
+    subparsers.add_parser("log", help="Xem nhật ký làm việc gần nhất")
+    subparsers.add_parser("logs", help="Xem nhật ký làm việc gần nhất")
     
     args = parser.parse_args()
     
@@ -222,6 +301,10 @@ def main():
         cmd_focus(args.minutes)
     elif args.command == "say":
         cmd_say(args.message, args.mood)
+    elif args.command == "plan":
+        cmd_plan()
+    elif args.command in ("log", "logs"):
+        cmd_log()
     else:
         style = getattr(args, "style", None)
         cmd_hello(style=style)

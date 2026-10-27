@@ -25,6 +25,7 @@ import threading
 import concurrent.futures
 import shutil
 import random
+import copy
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 
@@ -38,12 +39,16 @@ from textual.reactive import reactive
 try:
     import mascot_engine
 except ImportError:
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
     import mascot_engine
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = os.path.dirname(os.path.realpath(__file__))
 TASKS_FILE = os.path.expanduser("~/.workspace_tasks.json")
+PLAN_FILE = os.path.expanduser("~/.workspace_tomorrow_plan.json")
 QUOTES_FILE = os.path.join(BASE_DIR, "quotes.json")
+AI_PROMPTS_FILE = os.path.join(BASE_DIR, "ai_prompts.json")
+AI_PROMPTS_EXAMPLE_FILE = os.path.join(BASE_DIR, "ai_prompts.example.json")
+USER_AI_PROMPTS_FILE = os.path.expanduser("~/.config/terminal-workspace/ai_prompts.json")
 
 FEEDS = [
     {
@@ -151,19 +156,150 @@ def get_random_quote(context: str = None) -> dict:
     return random.choice(quotes) if quotes else DEFAULT_QUOTES[0]
 
 # ------------------------------------------------------------------------------
-# AI CLI Agent Helpers (agy, omp, pi, codex)
+# Configurable AI CLI & Prompting Engine (agy, omp, pi, codex)
 # ------------------------------------------------------------------------------
+DEFAULT_AI_CONFIG = {
+    "settings": {
+        "timeout": 90.0,
+        "agy_effort": "low",
+        "clis": ["agy", "omp", "pi", "codex"]
+    },
+    "prompts": {
+        "general_qa": [
+            "Bạn là một trợ lý AI thông minh trên hệ điều hành Kubuntu.",
+            "Hãy trả lời câu hỏi sau của người dùng bằng tiếng Việt chi tiết, mạch lạc, chính xác và có định dạng Markdown đẹp:",
+            "",
+            "Câu hỏi: {query}"
+        ],
+        "article_qa": [
+            "Người dùng có câu hỏi về bài viết an ninh mạng sau:",
+            "Yêu cầu: {query}",
+            "",
+            "Thông tin bài viết đính kèm:",
+            "Tiêu đề: {title}",
+            "Nguồn: {vendor}",
+            "Mô tả: {desc}",
+            "Link: {link}",
+            "",
+            "Hãy trả lời bằng tiếng Việt chuyên nghiệp, súc tích."
+        ],
+        "summary": [
+            "Bạn là một chuyên gia an ninh mạng cao cấp. Hãy đọc thông tin bài viết sau và tóm tắt bằng tiếng Việt thật súc tích, chuẩn xác kỹ thuật:",
+            "- Bản chất lỗ hổng / sự cố (nêu rõ mã CVE nếu có)",
+            "- Mức độ tác động & đối tượng / hệ thống bị ảnh hưởng",
+            "- Khuyến nghị phòng thủ / vá lỗi cho quản trị viên và lập trình viên",
+            "",
+            "Tiêu đề: {title}",
+            "Nguồn: {vendor}",
+            "Mô tả: {desc}",
+            "Link: {link}"
+        ],
+        "deep_analysis": [
+            "Hãy phân tích kỹ thuật an ninh mạng chuyên sâu cho bài viết sau bằng tiếng Việt theo các mục rõ ràng:",
+            "1. Vector tấn công & Cơ chế khai thác kỹ thuật",
+            "2. Bề mặt tấn công & Hệ thống bị ảnh hưởng",
+            "3. Dấu hiệu nhận biết (IoC / Artifacts) nếu có",
+            "4. Biện pháp rà soát và khắc phục (Remediation)",
+            "",
+            "Tiêu đề: {title}",
+            "Nguồn: {vendor}",
+            "Mô tả: {desc}",
+            "Link: {link}"
+        ],
+        "kickstart": [
+            "Bạn là chuyên gia tâm lý học hành vi và năng suất lao động. Người dùng đang bị trì hoãn và không thể bắt tay vào làm công việc này:",
+            "\"{task}\"",
+            "",
+            "Hãy phân rã công việc này thành đúng 3 bước hành động SIÊU NHỎ (Micro-steps) theo nguyên lý năng lượng kích hoạt thấp (Low Activation Energy):",
+            "- Bước 1 (Micro-Step 0 - CỰC KỲ DỄ, làm xong trong DƯỚI 2 PHÚT, chỉ là hành động khởi động vật lý không cần suy nghĩ sâu. Ví dụ: Mở file, tạo thư mục, gõ dòng đầu tiên).",
+            "- Bước 2 (Làm trong 5 phút tiếp theo để tạo đà quán tính).",
+            "- Bước 3 (Bắt đầu nội dung chính khi đã vào guồng Flow state).",
+            "",
+            "YÊU CẦU: Trả về duy nhất JSON hợp lệ, không giải thích gì thêm, định dạng:",
+            "{",
+            '  "step1": "Mô tả bước 1 (< 2 phút)",',
+            '  "step2": "Mô tả bước 2 (5 phút)",',
+            '  "step3": "Mô tả bước 3",',
+            '  "encouragement": "Lời động viên ngắn gọn, truyền cảm hứng hành động"',
+            "}"
+        ],
+        "tomorrow_plan": [
+            "Bạn là chuyên gia cố vấn năng suất lao động và quản lý thời gian. Người dùng muốn lên kế hoạch làm việc cho ngày mai với mục tiêu:",
+            "\"{goal}\"",
+            "",
+            "Hãy đề xuất 3 đến 4 công việc trọng tâm nhất cho ngày mai (Most Important Tasks):",
+            "- Mỗi việc phải ngắn gọn, cụ thể, hành động được ngay (Actionable).",
+            "- Gắn tag phân loại phù hợp (ví dụ: DEV, SEC, SYS, DOC, STUDY, PLAN...).",
+            "",
+            "YÊU CẦU BẮT BUỘC: Trả về duy nhất định dạng JSON hợp lệ, không có markdown phụ hay lời dẫn, định dạng:",
+            "{",
+            '  "items": [',
+            '    {"tag": "DEV", "title": "Nội dung việc 1"},',
+            '    {"tag": "SEC", "title": "Nội dung việc 2"}',
+            '  ],',
+            '  "advice": "Lời khuyên ngắn gọn tạo động lực cho ngày mai"',
+            "}"
+        ]
+    }
+}
+
+def load_ai_config() -> dict:
+    """Tải cấu hình AI và prompts từ file JSON (ưu tiên ~/.config rồi tới file trong repo)."""
+    cfg = copy.deepcopy(DEFAULT_AI_CONFIG)
+    target_path = None
+    if os.path.isfile(USER_AI_PROMPTS_FILE):
+        target_path = USER_AI_PROMPTS_FILE
+    elif os.path.isfile(AI_PROMPTS_FILE):
+        target_path = AI_PROMPTS_FILE
+    elif os.path.isfile(AI_PROMPTS_EXAMPLE_FILE):
+        target_path = AI_PROMPTS_EXAMPLE_FILE
+
+    if target_path:
+        try:
+            with open(target_path, "r", encoding="utf-8") as f:
+                user_data = json.load(f)
+            if isinstance(user_data, dict):
+                if "settings" in user_data and isinstance(user_data["settings"], dict):
+                    cfg["settings"].update(user_data["settings"])
+                if "prompts" in user_data and isinstance(user_data["prompts"], dict):
+                    for k, v in user_data["prompts"].items():
+                        cfg["prompts"][k] = v
+        except Exception:
+            pass
+    return cfg
+
+def render_prompt(template_key: str, **kwargs) -> str:
+    """Render prompt từ template cấu hình và các biến thay thế an toàn."""
+    cfg = load_ai_config()
+    tpl = cfg.get("prompts", {}).get(template_key)
+    if not tpl:
+        tpl = DEFAULT_AI_CONFIG["prompts"].get(template_key, "")
+    if isinstance(tpl, list):
+        tpl = "\n".join(str(line) for line in tpl)
+    elif not isinstance(tpl, str):
+        tpl = str(tpl)
+
+    for key, val in kwargs.items():
+        tpl = tpl.replace(f"{{{key}}}", str(val))
+    return tpl
+
 def get_ai_clis() -> list[tuple[str, list[str]]]:
-    """Danh sách các công cụ AI CLI khả dụng trên máy theo thứ tự ưu tiên."""
+    """Danh sách các công cụ AI CLI khả dụng trên máy theo thứ tự ưu tiên cấu hình."""
+    cfg = load_ai_config()
+    settings = cfg.get("settings", {})
+    effort = settings.get("agy_effort", "low")
+    priority = settings.get("clis", ["agy", "omp", "pi", "codex"])
+
+    tools_map = {
+        "agy": ("agy", ["agy", "--effort", str(effort), "-p"]),
+        "omp": ("omp", ["omp", "--no-session", "--no-tools", "-p"]),
+        "pi": ("pi", ["pi", "-p", "--no-session", "--no-tools"]),
+        "codex": ("codex", ["codex", "exec", "--skip-git-repo-check"]),
+    }
     tools = []
-    if shutil.which("agy"):
-        tools.append(("agy", ["agy", "--effort", "low", "-p"]))
-    if shutil.which("omp"):
-        tools.append(("omp", ["omp", "--no-session", "--no-tools", "-p"]))
-    if shutil.which("pi"):
-        tools.append(("pi", ["pi", "-p", "--no-session", "--no-tools"]))
-    if shutil.which("codex"):
-        tools.append(("codex", ["codex", "exec", "--skip-git-repo-check"]))
+    for cli_name in priority:
+        if cli_name in tools_map and shutil.which(cli_name):
+            tools.append(tools_map[cli_name])
     return tools
 
 def get_ai_cli() -> tuple[str, list[str]]:
@@ -171,8 +307,11 @@ def get_ai_cli() -> tuple[str, list[str]]:
     clis = get_ai_clis()
     return clis[0] if clis else ("", [])
 
-def call_ai_cli(prompt: str, timeout: float = 90.0) -> tuple[bool, str, str]:
+def call_ai_cli(prompt: str, timeout: float = None) -> tuple[bool, str, str]:
     """Thực thi câu lệnh AI CLI bất đồng bộ trong background thread với cơ chế tự động fallback."""
+    if timeout is None:
+        cfg = load_ai_config()
+        timeout = float(cfg.get("settings", {}).get("timeout", 90.0))
     clis = get_ai_clis()
     if not clis:
         return False, "Không tìm thấy công cụ AI CLI (agy, omp, pi hoặc codex) trong hệ thống PATH.", ""
@@ -380,6 +519,25 @@ def save_tasks(tasks):
     except Exception:
         pass
 
+def load_plan() -> list[dict]:
+    """Đọc danh sách kế hoạch ngày mai từ PLAN_FILE."""
+    if not os.path.exists(PLAN_FILE):
+        return []
+    try:
+        with open(PLAN_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+def save_plan(items: list[dict]):
+    """Lưu danh sách kế hoạch ngày mai vào PLAN_FILE."""
+    try:
+        with open(PLAN_FILE, "w", encoding="utf-8") as f:
+            json.dump(items, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
 # ------------------------------------------------------------------------------
 # Custom ListItems (Avoid Textual ID collisions)
 # ------------------------------------------------------------------------------
@@ -410,6 +568,7 @@ class BriefingModal(ModalScreen):
         Binding("o", "open_first", "Mở bài đầu"),
         Binding("enter", "open_first", "Mở bài đầu"),
         Binding("v", "ai_first", "AI Tóm tắt"),
+        Binding("y", "apply_plan", "Nạp plan hôm nay"),
     ]
 
     def __init__(self, briefing_items: list[dict], *args, **kwargs):
@@ -420,6 +579,24 @@ class BriefingModal(ModalScreen):
         with Vertical(classes="modal-box"):
             yield Label("🛡️ BẢN TIN TÓM LƯỢC ĐẦU NGÀY (MORNING TECHNICAL BRIEFING)", classes="modal-title")
             with VerticalScroll(classes="modal-content"):
+                plan_items = load_plan()
+                if plan_items:
+                    banner = (
+                        f"[bold cyan]╭────────────────────────────────────────────────────────────────────────────╮[/bold cyan]\n"
+                        f"[bold cyan]│[/bold cyan] 📅 [bold white]KẾ HOẠCH TỪ HÔM QUA:[/bold white] Bạn có [bold yellow]{len(plan_items)} việc[/bold yellow] đã lên lịch sẵn cho hôm nay.      [bold cyan]│[/bold cyan]\n"
+                    )
+                    for p in plan_items[:3]:
+                        p_tag = p.get('tag', 'PLAN')
+                        p_title = p.get('title', '')[:50]
+                        banner += f"[bold cyan]│[/bold cyan]   • [blue]\\[{p_tag}][/blue] [white]{p_title}[/white]\n"
+                    if len(plan_items) > 3:
+                        banner += f"[bold cyan]│[/bold cyan]   [dim]... và {len(plan_items)-3} việc khác[/dim]\n"
+                    banner += (
+                        f"[bold cyan]│[/bold cyan] 👉 [bold green]Bấm phím [y] để nạp toàn bộ vào danh sách làm việc hôm nay![/bold green]        [bold cyan]│[/bold cyan]\n"
+                        f"[bold cyan]╰────────────────────────────────────────────────────────────────────────────╯[/bold cyan]\n"
+                    )
+                    yield Static(banner)
+
                 if not self.briefing_items:
                     yield Static("[dim]Chưa có bài viết nào khớp với tiêu chuẩn cảnh báo khẩn cấp hôm nay.[/dim]")
                 else:
@@ -442,8 +619,9 @@ class BriefingModal(ModalScreen):
                         yield Static(card_text, classes="briefing-card")
 
             yield Static(
-                "[bold cyan][Enter/o][/bold cyan] Mở bài viết đầu tiên │ "
-                "[bold cyan][v][/bold cyan] AI Tóm tắt bài đầu │ "
+                "[bold cyan][Enter/o][/bold cyan] Mở bài đầu │ "
+                "[bold cyan][v][/bold cyan] AI Tóm tắt │ "
+                "[bold cyan][y][/bold cyan] Nạp plan hôm nay │ "
                 "[bold cyan][Esc][/bold cyan] Đóng",
                 classes="modal-footer"
             )
@@ -461,11 +639,20 @@ class BriefingModal(ModalScreen):
             self.dismiss()
             self.app._trigger_ai_analysis(art, mode="summary")
 
+    def action_apply_plan(self):
+        count = self.app.apply_tomorrow_plan()
+        if count > 0:
+            self.app.notify(f"🎉 Đã nạp {count} việc từ plan vào danh sách làm việc hôm nay!", title="Tomorrow Planner")
+            self.dismiss()
+        else:
+            self.app.notify("Chưa có kế hoạch nào để nạp.", title="Tomorrow Planner", severity="warning")
+
 class WrapUpModal(ModalScreen):
     BINDINGS = [
         Binding("escape", "dismiss", "Đóng"),
         Binding("s", "export_log", "Xuất file"),
         Binding("enter", "export_log", "Xuất file"),
+        Binding("p", "open_plan", "Soạn plan mai"),
     ]
 
     def __init__(self, tasks: list[dict], quote: dict, *args, **kwargs):
@@ -505,6 +692,14 @@ class WrapUpModal(ModalScreen):
                 else:
                     yield Static("  [dim]Không có việc tồn đọng. Ngày làm việc hoàn hảo![/dim]")
 
+
+                yield Label("\n[bold cyan]📅 KẾ HOẠCH DỰ KIẾN CHO NGÀY MAI:[/bold cyan]")
+                plan_items = load_plan()
+                if plan_items:
+                    for p in plan_items:
+                        yield Static(f"  [cyan]•[/cyan] [blue]\\[{p.get('tag','PLAN')}][/blue] {p.get('title','')}")
+                else:
+                    yield Static("  [dim]Chưa có kế hoạch ngày mai. Bấm [bold cyan][p][/bold cyan] để mở Tomorrow Planner.[/dim]")
                 if self.quote:
                     yield Static(
                         f"\n[italic cyan]\"{self.quote.get('quote','')}\"[/italic cyan]\n"
@@ -512,7 +707,8 @@ class WrapUpModal(ModalScreen):
                     )
 
             yield Static(
-                "[bold cyan][s / Enter][/bold cyan] Xuất Markdown (~/work_logs/) │ "
+                "[bold cyan][s / Enter][/bold cyan] Xuất Markdown │ "
+                "[bold cyan][p][/bold cyan] Soạn Plan mai │ "
                 "[bold cyan][Esc][/bold cyan] Đóng",
                 classes="modal-footer"
             )
@@ -552,6 +748,14 @@ class WrapUpModal(ModalScreen):
             lines.append("\n## 3. Trích dẫn định hướng")
             lines.append(f"> \"{self.quote.get('quote', '')}\"\n>\n> — **{self.quote.get('author', '')}** *({self.quote.get('note', '')})*")
 
+
+        lines.append("\n## 4. Kế hoạch dự kiến cho ngày mai:")
+        plan_items = load_plan()
+        if plan_items:
+            for p in plan_items:
+                lines.append(f"- [ ] [{p.get('tag', 'PLAN')}] {p.get('title', '')}")
+        else:
+            lines.append("- *Chưa có kế hoạch cụ thể.*")
         try:
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write("\n".join(lines) + "\n")
@@ -559,6 +763,186 @@ class WrapUpModal(ModalScreen):
         except Exception as e:
             self.app.notify(f"Lỗi khi ghi tệp: {e}", title="Lỗi", severity="error")
         self.dismiss()
+
+    def action_open_plan(self):
+        self.dismiss()
+        self.app.action_open_plan()
+
+class PlanModal(ModalScreen):
+    BINDINGS = [
+        Binding("escape", "dismiss", "Đóng"),
+        Binding("y", "apply_to_today", "Nạp vào hôm nay"),
+        Binding("a", "focus_input", "Thêm việc"),
+        Binding("c", "clear_plan", "Xóa hết"),
+    ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.plan_items = load_plan()
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="modal-box"):
+            yield Label("📅 KẾ HOẠCH LÀM VIỆC CHO NGÀY MAI (TOMORROW'S PLANNER)", classes="modal-title")
+            with VerticalScroll(classes="modal-content", id="plan-scroll"):
+                if not self.plan_items:
+                    yield Static(
+                        "[dim]Chưa có công việc nào được lên kế hoạch cho ngày mai.\n\n"
+                        "💡 [bold cyan]Cách thêm kế hoạch:[/bold cyan]\n"
+                        "  • Gõ vào ô bên dưới: [bold white][TAG] Tên công việc[/bold white] (rồi bấm Enter)\n"
+                        "  • Hoặc từ Omnibar: [bold white]plan: [TAG] Tên việc[/bold white] hoặc [bold white]mai: [TAG] Tên việc[/bold white]\n"
+                        "  • Hoặc nhờ AI gợi ý: [bold white]ai plan: <mục tiêu của bạn>[/bold white][/dim]"
+                    )
+                else:
+                    yield Static(
+                        f"[bold white]Số lượng việc đã lên lịch:[/bold white] [bold cyan]{len(self.plan_items)} việc[/bold cyan]\n"
+                        f"[dim]Các công việc này được giữ tách biệt, không ảnh hưởng đến tiến độ hôm nay.[/dim]\n"
+                    )
+                    for item in self.plan_items:
+                        p_id = item.get("id", 0)
+                        p_tag = item.get("tag", "PLAN")
+                        p_title = item.get("title", "")
+                        created = item.get("created_at", "")
+                        created_str = f" [dim]({created})[/dim]" if created else ""
+                        yield Static(
+                            f"  [cyan]#{p_id:02d}[/cyan] [bold blue]\\[{p_tag}][/bold blue] [bold white]{p_title}[/bold white]{created_str}"
+                        )
+
+            with Horizontal(id="plan-input-bar", classes="plan-input-container"):
+                yield Input(placeholder="Gõ [TAG] Tên việc mới rồi bấm Enter để thêm vào plan...", id="plan-add-input")
+
+            yield Static(
+                "[bold cyan][y][/bold cyan] Nạp toàn bộ vào hôm nay │ "
+                "[bold cyan][a][/bold cyan] Nhập thêm │ "
+                "[bold cyan][c][/bold cyan] Xóa hết │ "
+                "[bold cyan][Esc][/bold cyan] Đóng",
+                classes="modal-footer"
+            )
+
+    def on_input_submitted(self, event: Input.Submitted):
+        if event.input.id == "plan-add-input":
+            val = event.value.strip()
+            if val:
+                tag = "PLAN"
+                title = val
+                if title.startswith("[") and "]" in title:
+                    tag = title[1:title.index("]")].upper()
+                    title = title[title.index("]")+1:].strip()
+                base_id = max([p.get("id", 0) for p in self.plan_items], default=0) + 1
+                new_item = {
+                    "id": base_id,
+                    "tag": tag,
+                    "title": title,
+                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M")
+                }
+                self.plan_items.append(new_item)
+                save_plan(self.plan_items)
+                event.input.value = ""
+                self.app.notify(f"Đã thêm vào plan ngày mai: [{tag}] {title}", title="Tomorrow Planner")
+                self.refresh_display()
+
+    def refresh_display(self):
+        self.plan_items = load_plan()
+        try:
+            scroll = self.query_one("#plan-scroll", VerticalScroll)
+            scroll.remove_children()
+            if not self.plan_items:
+                scroll.mount(Static(
+                    "[dim]Chưa có công việc nào được lên kế hoạch cho ngày mai.\n\n"
+                    "💡 [bold cyan]Cách thêm kế hoạch:[/bold cyan]\n"
+                    "  • Gõ vào ô bên dưới: [bold white][TAG] Tên công việc[/bold white] (rồi bấm Enter)\n"
+                    "  • Hoặc từ Omnibar: [bold white]plan: [TAG] Tên việc[/bold white] hoặc [bold white]mai: [TAG] Tên việc[/bold white]\n"
+                    "  • Hoặc nhờ AI gợi ý: [bold white]ai plan: <mục tiêu của bạn>[/bold white][/dim]"
+                ))
+            else:
+                scroll.mount(Static(
+                    f"[bold white]Số lượng việc đã lên lịch:[/bold white] [bold cyan]{len(self.plan_items)} việc[/bold cyan]\n"
+                    f"[dim]Các công việc này được giữ tách biệt, không ảnh hưởng đến tiến độ hôm nay.[/dim]\n"
+                ))
+                for item in self.plan_items:
+                    p_id = item.get("id", 0)
+                    p_tag = item.get("tag", "PLAN")
+                    p_title = item.get("title", "")
+                    created = item.get("created_at", "")
+                    created_str = f" [dim]({created})[/dim]" if created else ""
+                    scroll.mount(Static(
+                        f"  [cyan]#{p_id:02d}[/cyan] [bold blue]\\[{p_tag}][/bold blue] [bold white]{p_title}[/bold white]{created_str}"
+                    ))
+        except Exception:
+            pass
+
+    def action_focus_input(self):
+        try:
+            inp = self.query_one("#plan-add-input", Input)
+            inp.focus()
+        except Exception:
+            pass
+
+    def action_clear_plan(self):
+        save_plan([])
+        self.plan_items = []
+        self.app.notify("Đã xóa toàn bộ kế hoạch ngày mai.", title="Tomorrow Planner")
+        self.refresh_display()
+
+    def action_apply_to_today(self):
+        if not self.plan_items:
+            self.app.notify("Chưa có việc nào trong plan để nạp!", title="Tomorrow Planner", severity="warning")
+            return
+        count = self.app.apply_tomorrow_plan()
+        self.app.notify(f"🎉 Đã nạp {count} việc từ plan vào danh sách làm việc hôm nay!", title="Tomorrow Planner")
+        self.dismiss()
+
+class LogsModal(ModalScreen):
+    BINDINGS = [
+        Binding("escape", "dismiss", "Đóng"),
+        Binding("o", "open_in_code", "Mở VS Code"),
+        Binding("d", "open_in_dolphin", "Mở Dolphin"),
+    ]
+
+    def compose(self) -> ComposeResult:
+        log_dir = os.path.expanduser("~/work_logs")
+        files = []
+        if os.path.exists(log_dir):
+            files = sorted(
+                [f for f in os.listdir(log_dir) if f.startswith("daily_") and f.endswith(".md")],
+                reverse=True
+            )
+
+        with Vertical(classes="modal-box"):
+            yield Label("📚 NHẬT KÝ LÀM VIỆC ĐÃ LƯU (WORK LOGS HISTORY)", classes="modal-title")
+            with VerticalScroll(classes="modal-content"):
+                if not files:
+                    yield Static(
+                        "[dim]Chưa có file nhật ký nào được lưu tại ~/work_logs/.\n"
+                        "💡 Cuối ngày, bạn chỉ cần bấm [bold white]w[/bold white] rồi bấm [bold white]s[/bold white] để xuất nhật ký![/dim]"
+                    )
+                else:
+                    for filename in files:
+                        filepath = os.path.join(log_dir, filename)
+                        try:
+                            with open(filepath, "r", encoding="utf-8") as f:
+                                content = f.read()
+                            yield Label(f"[bold cyan]📁 {filename}[/bold cyan] [dim]({filepath})[/dim]")
+                            yield Markdown(content)
+                            yield Static("[dim]─" * 48 + "[/dim]\n")
+                        except Exception as e:
+                            yield Static(f"[red]Không thể đọc {filename}: {e}[/red]")
+
+            yield Static(
+                "[bold cyan][o][/bold cyan] Mở thư mục trong VS Code │ "
+                "[bold cyan][d][/bold cyan] Mở trong Dolphin │ "
+                "[bold cyan][Esc][/bold cyan] Đóng",
+                classes="modal-footer"
+            )
+
+    def action_open_in_code(self):
+        log_dir = os.path.expanduser("~/work_logs")
+        subprocess.Popen(["code", log_dir], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.app.notify("Đang mở ~/work_logs trong VS Code...", title="Work Logs")
+
+    def action_open_in_dolphin(self):
+        log_dir = os.path.expanduser("~/work_logs")
+        subprocess.Popen(["dolphin", log_dir], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.app.notify("Đang mở ~/work_logs trong Dolphin...", title="Work Logs")
 
 class AIResultModal(ModalScreen):
     BINDINGS = [
@@ -644,6 +1028,7 @@ Bấm `/` bất kỳ lúc nào để mở Omnibar và gõ các lệnh sau:
 
 #### 🤖 1. Trợ Lý AI & Tìm Kiếm Tri Thức
 * `ai: <câu hỏi>` hoặc `hỏi: <câu hỏi>` : Đặt câu hỏi tự do cho trợ lý AI (hoặc gõ tự nhiên: *là gì*, *tại sao*, *làm sao*...)
+* `prompts` hoặc `ai config` : Mở file cấu hình Prompt AI (`ai_prompts.json`)
 * `cve: <mã>` : Tra cứu lỗ hổng bảo mật trực tiếp trên NVD (VD: `cve: CVE-2024-3094`)
 * `gh: <repo/query>` : Tra cứu kho mã nguồn GitHub (VD: `gh: textualize/textual`)
 * `so: <query>` : Tra cứu giải pháp kỹ thuật trên StackOverflow
@@ -658,17 +1043,22 @@ Bấm `/` bất kỳ lúc nào để mở Omnibar và gõ các lệnh sau:
 * `icon: <tên>` : Đổi bộ icon (`colloid`, `tela`, `breeze`)
 * `autostart: <on|off|status>` : Bật/tắt tự bung Workspace khi mở máy
 
-#### 📋 4. Quản Lý Công Việc & Chống Trì Hoãn (Anti-Inertia)
+#### 📋 4. Quản Lý Công Việc, Kế Hoạch & Chống Trì Hoãn
+* `plan` hoặc `mai` (hoặc `Phím m`) : Mở Tomorrow Planner xem và soạn kế hoạch ngày mai
+* `plan: [TAG] nội dung` hoặc `mai: ...` : Thêm việc vào kế hoạch ngày mai (không làm tụt % hôm nay)
+* `ai plan: <mục tiêu>` : AI tự động đề xuất 3-4 việc trọng tâm (MIT) cho ngày mai
+* `plan del: <id>` : Xóa việc trong plan ngày mai theo ID
+* `plan apply` hoặc `nap plan` : Nạp toàn bộ plan ngày mai thành task chính thức hôm nay
 * `kick: <tên việc>` : AI tự động bẻ nhỏ việc thành 3 micro-steps (Bước 1 < 2p) & tự động đếm giờ
 * `Phím k` hoặc `kickstart` : Kích hoạt phiên phá băng tâm lý 5 phút (Micro-Pomodoro không áp lực)
-* `task: [TAG] nội dung` : Thêm task mới (VD: `task: [DEV] Viết script kiểm thử`)
+* `task: [TAG] nội dung` : Thêm task mới hôm nay (VD: `task: [DEV] Viết script kiểm thử`)
 * `done: <id>` : Đánh dấu hoàn thành task theo ID
 * `del: <id>` hoặc `rm: <id>` : Xóa task theo ID
 * `focus [phút]` : Bắt đầu phiên làm việc Pomodoro (mặc định 25 phút)
 * `focus stop` : Dừng phiên tập trung
-* `wrapup` hoặc `log` : Mở báo cáo tổng kết ngày & xuất file Markdown
-* `brief` : Xem điểm tin trọng điểm đầu ngày
-
+* `wrapup` : Mở báo cáo tổng kết ngày & xuất file Markdown (có mục Plan mai)
+* `logs` hoặc `history` : Xem lại toàn bộ nhật ký các ngày đã lưu trong ~/work_logs/
+* `brief` : Xem điểm tin trọng điểm đầu ngày (kèm nhắc việc đã plan từ hôm qua)
 #### 🔢 5. Máy Tính Nhanh & Linh Vật
 * `<biểu thức>` : Tính toán số học tức thì (VD: `125 * 8`, `sqrt(144) + 2^10`, `sin(pi/2)`)
 * `filter: <từ khóa>` : Lọc danh sách bài viết trên màn hình
@@ -895,6 +1285,17 @@ class CyberDashboardApp(App):
         margin-bottom: 1;
         border-bottom: dashed #1f2430;
     }
+
+    .plan-input-container {
+        height: 3;
+        margin-top: 1;
+        margin-bottom: 1;
+    }
+
+    #plan-add-input {
+        width: 100%;
+        border: tall #38bdf8;
+    }
     """
 
     BINDINGS = [
@@ -908,6 +1309,7 @@ class CyberDashboardApp(App):
         Binding("n", "focus_news", "Bản tin"),
         Binding("t", "focus_tasks", "Công việc"),
         Binding("b", "open_briefing", "Điểm tin"),
+        Binding("m", "open_plan", "Plan ngày mai"),
         Binding("p", "toggle_focus", "Đếm giờ 25p"),
         Binding("P", "stop_focus", "Dừng đếm giờ"),
         Binding("k", "kickstart_focus", "Phá băng 5p"),
@@ -1340,24 +1742,10 @@ class CyberDashboardApp(App):
         self.habitat.react_to_event("ai_thinking")
         self.update_mascot_display()
 
-        prompt = (
-            f"Bạn là chuyên gia tâm lý học hành vi và năng suất lao động. Người dùng đang bị trì hoãn và không thể bắt tay vào làm công việc này:\n"
-            f"\"{task_desc}\"\n\n"
-            f"Hãy phân rã công việc này thành đúng 3 bước hành động SIÊU NHỎ (Micro-steps) theo nguyên lý năng lượng kích hoạt thấp (Low Activation Energy):\n"
-            f"- Bước 1 (Micro-Step 0 - CỰC KỲ DỄ, làm xong trong DƯỚI 2 PHÚT, chỉ là hành động khởi động vật lý không cần suy nghĩ sâu. Ví dụ: Mở file, tạo thư mục, gõ dòng đầu tiên).\n"
-            f"- Bước 2 (Làm trong 5 phút tiếp theo để tạo đà quán tính).\n"
-            f"- Bước 3 (Bắt đầu nội dung chính khi đã vào guồng Flow state).\n\n"
-            f"YÊU CẦU: Trả về duy nhất JSON hợp lệ, không giải thích gì thêm, định dạng:\n"
-            f"{{\n"
-            f'  "step1": "Mô tả bước 1 (< 2 phút)",\n'
-            f'  "step2": "Mô tả bước 2 (5 phút)",\n'
-            f'  "step3": "Mô tả bước 3",\n'
-            f'  "encouragement": "Lời động viên ngắn gọn, truyền cảm hứng hành động"\n'
-            f"}}"
-        )
+        prompt = render_prompt("kickstart", task=task_desc)
 
         def worker():
-            ok, text, tool = call_ai_cli(prompt, timeout=90.0)
+            ok, text, tool = call_ai_cli(prompt)
             self.call_from_thread(self._on_kickstart_finish, task_desc, ok, text, tool)
 
         threading.Thread(target=worker, daemon=True).start()
@@ -1426,6 +1814,106 @@ class CyberDashboardApp(App):
         quote = get_random_quote("wrapup")
         self.push_screen(WrapUpModal(self.tasks, quote))
 
+    def action_open_plan(self):
+        """Mở modal Tomorrow Planner để xem và quản lý kế hoạch ngày mai."""
+        self.push_screen(PlanModal())
+
+    def action_open_logs(self):
+        """Mở modal xem lại lịch sử các file nhật ký ~/work_logs/."""
+        self.push_screen(LogsModal())
+
+    def apply_tomorrow_plan(self) -> int:
+        """Nạp toàn bộ công việc trong plan ngày mai vào danh sách task hôm nay."""
+        plan_items = load_plan()
+        if not plan_items:
+            return 0
+        base_id = max([t.get("id", 0) for t in self.tasks], default=0)
+        for item in plan_items:
+            base_id += 1
+            self.tasks.append({
+                "id": base_id,
+                "tag": item.get("tag", "PLAN"),
+                "title": item.get("title", ""),
+                "status": "todo"
+            })
+        save_tasks(self.tasks)
+        save_plan([])
+        self.render_tasks()
+        self.habitat.react_to_event("task_add")
+        self.update_mascot_display()
+        return len(plan_items)
+
+    def _trigger_ai_plan(self, goal_desc: str):
+        """Dùng AI CLI để gợi ý 3-5 công việc trọng tâm cho ngày mai."""
+        cli_name, _ = get_ai_cli()
+        if not cli_name:
+            self.notify("Không tìm thấy công cụ AI CLI để tạo plan!", title="Lỗi AI", severity="error")
+            return
+
+        detail_box = self.query_one("#detail-box", Static)
+        detail_box.update(
+            f"[bold cyan]🤖 AI DAILY PLANNER ({cli_name.upper()}):[/bold cyan]\n"
+            f"[yellow]Đang xây dựng kế hoạch ngày mai cho mục tiêu: '[bold white]{goal_desc}[/bold white]'...[/yellow]\n\n"
+            f"[dim]Áp dụng nguyên tắc Eat That Frog & MIT (Most Important Tasks). Vui lòng đợi ~5s...[/dim]"
+        )
+        self.notify(f"AI đang soạn plan: {goal_desc[:25]}...", title="Tomorrow Planner")
+        self.habitat.react_to_event("ai_thinking")
+        self.update_mascot_display()
+
+        prompt = render_prompt("tomorrow_plan", goal=goal_desc)
+
+        def worker():
+            ok, text, tool = call_ai_cli(prompt)
+            self.call_from_thread(self._on_ai_plan_finish, goal_desc, ok, text, tool)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_ai_plan_finish(self, goal_desc: str, ok: bool, text: str, tool: str):
+        plan_items = load_plan()
+        base_id = max([p.get("id", 0) for p in plan_items], default=0)
+        added_count = 0
+        advice = "Chúc bạn một ngày mai làm việc thật năng suất và kỷ luật!"
+
+        if ok:
+            try:
+                clean_json = text.strip()
+                if "```" in clean_json:
+                    clean_json = re.sub(r"^```[a-zA-Z]*\n", "", clean_json)
+                    clean_json = re.sub(r"\n```$", "", clean_json)
+                data = json.loads(clean_json)
+                items = data.get("items", [])
+                advice = data.get("advice", advice)
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+                for item in items:
+                    t = item.get("title", "").strip()
+                    if t:
+                        base_id += 1
+                        plan_items.append({
+                            "id": base_id,
+                            "tag": item.get("tag", "PLAN").upper(),
+                            "title": t,
+                            "created_at": now_str
+                        })
+                        added_count += 1
+            except Exception:
+                pass
+
+        if added_count == 0:
+            base_id += 1
+            plan_items.append({
+                "id": base_id,
+                "tag": "PLAN",
+                "title": f"Trọng tâm: {goal_desc[:60]}",
+                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M")
+            })
+            added_count = 1
+
+        save_plan(plan_items)
+        self.habitat.react_to_event("task_add")
+        self.update_mascot_display()
+        self.notify(f"🎉 AI đã lập kế hoạch ngày mai ({added_count} việc)! Bấm 'm' để xem.", title="Tomorrow Planner")
+        self.action_open_plan()
+
     # --------------------------------------------------------------------------
     # Navigation & Omnibar
     # --------------------------------------------------------------------------
@@ -1479,6 +1967,21 @@ class CyberDashboardApp(App):
             self.push_screen(OmniHelpModal())
             return
 
+        # 0.1 Mở hoặc xem đường dẫn cấu hình prompt AI
+        if q.lower() in ["prompts", "prompt", "ai config", "ai-prompts", "aiconfig"]:
+            cfg_path = USER_AI_PROMPTS_FILE if os.path.isfile(USER_AI_PROMPTS_FILE) else AI_PROMPTS_FILE
+            if not os.path.isfile(cfg_path) and os.path.isfile(AI_PROMPTS_EXAMPLE_FILE):
+                try:
+                    shutil.copy(AI_PROMPTS_EXAMPLE_FILE, cfg_path)
+                except Exception:
+                    cfg_path = AI_PROMPTS_EXAMPLE_FILE
+            self.notify(f"File prompt AI: {cfg_path}", title="Cấu hình AI Prompt")
+            if shutil.which("code"):
+                subprocess.Popen(["code", cfg_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            elif shutil.which("xdg-open"):
+                subprocess.Popen(["xdg-open", cfg_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return
+
         # 1. Điểm tin đầu ngày
         if q.lower() in ["brief", "briefing", "diemtin"]:
             self.action_open_briefing()
@@ -1516,6 +2019,75 @@ class CyberDashboardApp(App):
         # 3. Báo cáo tổng kết ngày
         if q.lower() in ["wrapup", "eod", "tongket", "log"]:
             self.action_open_wrapup()
+            return
+
+        # Xem lại lịch sử nhật ký làm việc (Work Logs History)
+        if q.lower() in ["logs", "log view", "history", "nhatky", "nhat ky", "xem log", "xem nhat ky"]:
+            self.action_open_logs()
+            return
+
+        # 3b. Kế hoạch ngày mai (Tomorrow Planner)
+        if q.lower() in ["plan", "mai", "tomorrow", "kehoach", "ke hoach"]:
+            self.action_open_plan()
+            return
+
+        if q.lower() in ["plan apply", "plan load", "nap plan", "ap dung plan"]:
+            count = self.apply_tomorrow_plan()
+            if count > 0:
+                self.notify(f"🎉 Đã nạp {count} việc từ plan vào danh sách hôm nay!", title="Tomorrow Planner")
+            else:
+                self.notify("Chưa có việc nào trong plan để nạp.", title="Tomorrow Planner", severity="warning")
+            return
+
+        if q.lower() in ["plan clear", "clear plan", "xoa plan"]:
+            save_plan([])
+            self.notify("Đã xóa sạch kế hoạch ngày mai.", title="Tomorrow Planner")
+            self.habitat.react_to_event("task_del")
+            self.update_mascot_display()
+            return
+
+        if q.lower().startswith("ai plan:") or q.lower().startswith("plan ai:") or q.lower().startswith("ai mai:"):
+            goal_arg = re.sub(r"^(ai plan|plan ai|ai mai):\s*", "", q, flags=re.IGNORECASE).strip()
+            if goal_arg:
+                self._trigger_ai_plan(goal_arg)
+            else:
+                self.notify("Cú pháp: ai plan: <mục tiêu của bạn cho ngày mai>", title="AI Planner")
+            return
+
+        if q.lower().startswith("plan del:") or q.lower().startswith("plan rm:") or q.lower().startswith("del plan:"):
+            try:
+                p_id = int(re.sub(r"^(plan del|plan rm|del plan):\s*", "", q, flags=re.IGNORECASE).strip())
+                plan_items = load_plan()
+                b_len = len(plan_items)
+                plan_items = [p for p in plan_items if p.get("id") != p_id]
+                if len(plan_items) < b_len:
+                    save_plan(plan_items)
+                    self.notify(f"Đã xóa việc #{p_id} khỏi plan ngày mai.", title="Tomorrow Planner")
+                else:
+                    self.notify(f"Không tìm thấy việc #{p_id} trong plan.", title="Tomorrow Planner", severity="warning")
+            except ValueError:
+                self.notify("Cú pháp: plan del: <id> (ví dụ: plan del: 1)", title="Tomorrow Planner", severity="error")
+            return
+
+        if q.lower().startswith("plan:") or q.lower().startswith("mai:") or q.lower().startswith("tomorrow:"):
+            plan_text = re.sub(r"^(plan|mai|tomorrow):\s*", "", q, flags=re.IGNORECASE).strip()
+            if plan_text:
+                tag = "PLAN"
+                if plan_text.startswith("[") and "]" in plan_text:
+                    tag = plan_text[1:plan_text.index("]")].upper()
+                    plan_text = plan_text[plan_text.index("]")+1:].strip()
+                plan_items = load_plan()
+                new_id = max([p.get("id", 0) for p in plan_items], default=0) + 1
+                plan_items.append({
+                    "id": new_id,
+                    "tag": tag,
+                    "title": plan_text,
+                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M")
+                })
+                save_plan(plan_items)
+                self.notify(f"Đã lên lịch ngày mai: [{tag}] {plan_text} (Tổng: {len(plan_items)} việc)", title="Tomorrow Planner")
+                self.habitat.react_to_event("task_add")
+                self.update_mascot_display()
             return
 
         # 4. Lọc & Tìm kiếm tin tức tại chỗ: "filter: zero-day", "search: cisa", "find: ssh"
@@ -1829,31 +2401,24 @@ class CyberDashboardApp(App):
         self.update_mascot_display()
 
         if mode == "summary":
-            prompt = (
-                f"Bạn là một chuyên gia an ninh mạng cao cấp. Hãy đọc thông tin bài viết sau và tóm tắt bằng tiếng Việt thật súc tích, chuẩn xác kỹ thuật:\n"
-                f"- Bản chất lỗ hổng / sự cố (nêu rõ mã CVE nếu có)\n"
-                f"- Mức độ tác động & đối tượng / hệ thống bị ảnh hưởng\n"
-                f"- Khuyến nghị phòng thủ / vá lỗi cho quản trị viên và lập trình viên\n\n"
-                f"Tiêu đề: {art.get('title', '')}\n"
-                f"Nguồn: {art.get('vendor', '')}\n"
-                f"Mô tả: {art.get('desc', '')}\n"
-                f"Link: {art.get('link', '')}"
+            prompt = render_prompt(
+                "summary",
+                title=art.get("title", ""),
+                vendor=art.get("vendor", ""),
+                desc=art.get("desc", ""),
+                link=art.get("link", "")
             )
         else:
-            prompt = (
-                f"Hãy phân tích kỹ thuật an ninh mạng chuyên sâu cho bài viết sau bằng tiếng Việt theo các mục rõ ràng:\n"
-                f"1. Vector tấn công & Cơ chế khai thác kỹ thuật\n"
-                f"2. Bề mặt tấn công & Hệ thống bị ảnh hưởng\n"
-                f"3. Dấu hiệu nhận biết (IoC / Artifacts) nếu có\n"
-                f"4. Biện pháp rà soát và khắc phục (Remediation)\n\n"
-                f"Tiêu đề: {art.get('title', '')}\n"
-                f"Nguồn: {art.get('vendor', '')}\n"
-                f"Mô tả: {art.get('desc', '')}\n"
-                f"Link: {art.get('link', '')}"
+            prompt = render_prompt(
+                "deep_analysis",
+                title=art.get("title", ""),
+                vendor=art.get("vendor", ""),
+                desc=art.get("desc", ""),
+                link=art.get("link", "")
             )
 
         def worker():
-            ok, text, tool = call_ai_cli(prompt, timeout=90.0)
+            ok, text, tool = call_ai_cli(prompt)
             self.call_from_thread(self._on_ai_finish, art, ok, text, mode_label, tool)
 
         threading.Thread(target=worker, daemon=True).start()
@@ -1872,26 +2437,20 @@ class CyberDashboardApp(App):
                 f"[dim]Tiến trình đang chạy ngầm, vui lòng đợi trong giây lát.[/dim]"
             )
             mode_label = f"Hỏi AI: {custom_query[:25]}"
-            prompt = (
-                f"Bạn là một trợ lý AI thông minh trên hệ điều hành Kubuntu. "
-                f"Hãy trả lời câu hỏi sau của người dùng bằng tiếng Việt chi tiết, mạch lạc, chính xác và có định dạng Markdown đẹp:\n\n"
-                f"Câu hỏi: {custom_query}"
-            )
+            prompt = render_prompt("general_qa", query=custom_query)
         else:
             detail_box.update(
                 f"[bold cyan]{art.get('title','')}[/bold cyan]\n\n"
                 f"[bold yellow]🤖 AI ({cli_name.upper()}) đang trả lời yêu cầu: '{custom_query}'...[/bold yellow]\n"
             )
             mode_label = f"Phân tích tin: {custom_query[:20]}"
-            prompt = (
-                f"Người dùng có câu hỏi về bài viết an ninh mạng sau:\n"
-                f"Yêu cầu: {custom_query}\n\n"
-                f"Thông tin bài viết đính kèm:\n"
-                f"Tiêu đề: {art.get('title', '')}\n"
-                f"Nguồn: {art.get('vendor', '')}\n"
-                f"Mô tả: {art.get('desc', '')}\n"
-                f"Link: {art.get('link', '')}\n\n"
-                f"Hãy trả lời bằng tiếng Việt chuyên nghiệp, súc tích."
+            prompt = render_prompt(
+                "article_qa",
+                query=custom_query,
+                title=art.get("title", ""),
+                vendor=art.get("vendor", ""),
+                desc=art.get("desc", ""),
+                link=art.get("link", "")
             )
 
         self.notify(f"Đang hỏi AI ({cli_name}): {custom_query[:25]}...", title="AI Assistant")
@@ -1899,7 +2458,7 @@ class CyberDashboardApp(App):
         self.update_mascot_display()
 
         def worker():
-            ok, text, tool = call_ai_cli(prompt, timeout=90.0)
+            ok, text, tool = call_ai_cli(prompt)
             self.call_from_thread(self._on_ai_finish, art, ok, text, mode_label, tool, is_general)
 
         threading.Thread(target=worker, daemon=True).start()

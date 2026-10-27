@@ -15,5 +15,11 @@ else
     exit 1
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec "$UV_CMD" run --with textual python3 "$SCRIPT_DIR/cyber_dashboard.py" "$@"
+TARGET="${BASH_SOURCE[0]}"
+if command -v realpath >/dev/null 2>&1; then
+    TARGET="$(realpath "$TARGET")"
+elif command -v readlink >/dev/null 2>&1; then
+    TARGET="$(readlink -f "$TARGET")"
+fi
+SCRIPT_DIR="$(cd "$(dirname "$TARGET")" && pwd)"
+exec "$UV_CMD" run --no-project --with textual python3 "$SCRIPT_DIR/cyber_dashboard.py" "$@"

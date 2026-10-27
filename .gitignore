@@ -25,4 +25,5 @@ work_logs/
 
 # Local configuration overrides
 local_config.json
+ai_prompts.json
 *.local

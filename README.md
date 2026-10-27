@@ -34,8 +34,10 @@ Script sẽ tự động cấu hình môi trường Python UV, Textual UI, profi
       * Bấm `v`: AI CLI tự động tóm tắt bài viết bằng tiếng Việt chuẩn kỹ thuật (sự cố, đối tượng ảnh hưởng, khuyến nghị phòng thủ).
       * Bấm `x`: AI CLI phân tích chuyên sâu (vector tấn công, IoC, biện pháp remediation) qua pop-up Markdown cuộn được.
       * Bấm `c` trong pop-up AI để chuyển bài phân tích thành task hành động ngay lập tức.
+      * **Tùy biến cấu hình AI & Prompt (`ai_prompts.example.json`):** Toàn bộ prompt (`general_qa`, `article_qa`, tóm tắt `summary`, phân tích `deep_analysis`, bẻ nhỏ việc `kickstart`, lập kế hoạch `tomorrow_plan`) cùng các tham số CLI (`agy_effort`, `timeout`, thứ tự ưu tiên CLI) được cung cấp qua bản mẫu `ai_prompts.example.json`. File `ai_prompts.json` đã được đưa vào `.gitignore` để mỗi người dùng có thể tự do chỉnh sửa prompt cá nhân mà không làm bẩn git. Mở nhanh hoặc tự khởi tạo cấu hình bằng cách gõ `prompts` trong Omnibar.
     * **Omnibar Vạn Năng (Trung tâm điều khiển tất cả trong một):** Bấm phím `/` ở bất kỳ đâu để kích hoạt Omnibar:
-      * **Trợ lý AI Đa Năng:** Gõ `ai: <câu hỏi>`, `hỏi: <câu hỏi>` hoặc hỏi tự nhiên (`tại sao...`, `là gì...`) để AI giải đáp mọi lĩnh vực; nhắc đến `bài này`, `lỗ hổng này` để AI phân tích theo bài báo.
+      * **Trợ lý AI Đa Năng:** Gõ `ai: <câu hỏi>`, `hỏi: <câu hỏi>` hoặc hỏi tự nhiên (`tại sao...`, `là gì...`) để AI giải đáp mọi lĩnh vực; nhắc đến `bài này`, `lỗ hổng này` để AI phân tích theo bài báo. Gõ `prompts` để mở nhanh file cấu hình prompt.
+      * **Lập Kế Hoạch Ngày Mai (Tomorrow's Planner):** Bấm phím `m` hoặc gõ `plan: [TAG] nội dung` / `mai: [TAG] nội dung` để soạn trước việc cho ngày mai mà không làm tụt % tiến độ hôm nay. Gõ `ai plan: <mục tiêu>` để AI gợi ý 3–4 việc trọng tâm (MIT). Bấm `y` trong popup để nạp thẳng plan thành việc chính thức.
       * **Phá Băng Chống Trì Hoãn (Anti-Inertia):** Gõ `kick: <tên việc>` để AI tự động phân rã việc bạn đang ngại làm thành 3 bước siêu nhỏ (Bước 1 < 2 phút), nạp thẳng vào danh sách việc và kích hoạt đồng hồ 5 phút làm ngay.
       * **Thực thi lệnh Shell:** `! <lệnh>` hoặc `sh: <lệnh>` (ví dụ: `! df -h`, `! uptime`, `! ping -c 3 8.8.8.8`) để chạy nhanh lệnh bash và xem kết quả trực tiếp.
       * **Mở ứng dụng hệ thống:** `open code`, `open chrome`, `open dolphin`, `open settings`...
@@ -46,11 +48,11 @@ Script sẽ tự động cấu hình môi trường Python UV, Textual UI, profi
       * **Tra cứu chuyên sâu:** `cve: <mã>`, `gh: <repo>`, `so: <query>`, `shodan: <query>`.
       * **Bảng tra cứu nhanh:** Gõ `help` hoặc `?` trong Omnibar để mở cheatsheet toàn bộ lệnh.
     * **Bản tin tóm lược đầu ngày (Morning Briefing):** Bấm `b` (hoặc gõ `brief` trong Omnibar) để xem 3–5 tin khẩn cấp/trọng điểm nhất được chấm điểm tự động theo bộ quy tắc (0-day, CVE, CISA Alert, Ransomware).
-    * **Báo cáo tổng kết ngày & Xuất Markdown (Daily Wrap-up):** Bấm `w` (hoặc gõ `wrapup`/`eod`) để xem tỷ lệ hoàn thành công việc, danh sách việc dở dang, và bấm `s` để tự động xuất file nhật ký `~/work_logs/daily_YYYY-MM-DD.md`.
+    * **Báo cáo tổng kết ngày & Xuất Markdown (Daily Wrap-up):** Bấm `w` (hoặc gõ `wrapup`) để xem tỷ lệ hoàn thành công việc, danh sách việc dở dang, và bấm `s` để tự động xuất file nhật ký `~/work_logs/daily_YYYY-MM-DD.md`. Gõ `logs` hoặc `history` trong Omnibar để mở bảng xem lại toàn bộ nhật ký các ngày trước.
     * **Trích dẫn định hướng tư duy theo ngữ cảnh (Contextual Quotes):** Tích hợp danh mục trích dẫn chọn lọc (Unix philosophy, Zero Trust, kỷ luật thực thi) xuất hiện đúng lúc khi bắt đầu/kết thúc phiên Focus hoặc khi xuất báo cáo cuối ngày.
     * **Phím tắt điều hướng nhanh:**
       * `n`: Focus vào Bản tin │ `t`: Focus vào Công việc │ `/`: Focus Omnibar.
-      * `b`: Điểm tin đầu ngày │ `k`: Phá băng 5p │ `p` / `P`: Bật / Tắt Focus │ `w`: Tổng kết ngày.
+      * `b`: Điểm tin đầu ngày │ `m`: Plan ngày mai │ `k`: Phá băng 5p │ `p` / `P`: Bật / Tắt Focus │ `w`: Tổng kết ngày.
       * `v`: AI Tóm tắt tiếng Việt │ `x`: AI Phân tích chuyên sâu │ `Enter` / `o`: Mở web.
       * `q`: Thoát dashboard.
   * **Phím tắt chuyển qua lại giữa 2 bên:** `Alt + Mũi tên trái/phải` hoặc bấm chuột trực tiếp vào pane muốn làm việc. Thoát bằng `Ctrl + q`.
@@ -61,7 +63,7 @@ Script sẽ tự động cấu hình môi trường Python UV, Textual UI, profi
 * **Công cụ tối ưu hiệu năng toàn diện:** `sudo ./optimize_performance.sh` (Swappiness 10, Google BBR, ZRAM nén zstd, Inotify 524K, NVMe Trim).
 * **Công cụ đổi hình nền 4K nhanh:** Chạy `./set_wallpaper.sh [whitesur|sonoma|ventura|monterey|altai|cascade|pastel]` trong thư mục này.
 * **Công cụ đổi icon nhanh:** Chạy `./toggle_icon_style.sh [colloid|tela|breeze]` trong thư mục này.
-* **Linh vật Kaomoji Terminal (Kubi Buddy):** Gõ `buddy` ở bất kỳ terminal nào để chào hỏi, xem tiến độ task và nhận lời động viên; `buddy cheer` để giải tỏa căng thẳng khi fix bug; `buddy focus [phút]` để đếm giờ tập trung cùng linh vật; hoặc `buddy watch` để linh vật ngồi bàn làm việc cùng bạn.
+* **Linh vật Kaomoji Terminal (Kubi Buddy):** Gõ `buddy` ở bất kỳ terminal nào để chào hỏi, xem tiến độ task hôm nay & kế hoạch ngày mai; `buddy log` để đọc nhanh nhật ký làm việc gần nhất; `buddy plan` để xem chi tiết việc dự kiến ngày mai; `buddy cheer` để giải tỏa căng thẳng khi fix bug; `buddy focus [phút]` để đếm giờ tập trung cùng linh vật; hoặc `buddy watch` để linh vật ngồi bàn làm việc cùng bạn.
 * **Tự khởi động Workspace khi mở máy (Autostart):** Chạy `./toggle_autostart.sh [workspace|dashboard|disable|status]` (hoặc gõ `toggle_autostart` ở bất kỳ đâu) để quản lý cấu hình tự động bung ra mỗi khi đăng nhập Kubuntu (mặc định đã BẬT chế độ Cyber Workspace).
 
 ---

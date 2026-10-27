@@ -4,7 +4,13 @@
 # ==============================================================================
 set -e
 
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TARGET="${BASH_SOURCE[0]}"
+if command -v realpath >/dev/null 2>&1; then
+    TARGET="$(realpath "$TARGET")"
+elif command -v readlink >/dev/null 2>&1; then
+    TARGET="$(readlink -f "$TARGET")"
+fi
+REPO_DIR="$(cd "$(dirname "$TARGET")" && pwd)"
 BIN_DIR="$HOME/.local/bin"
 APPS_DIR="$HOME/.local/share/applications"
 KONSOLE_DIR="$HOME/.local/share/konsole"

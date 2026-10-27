@@ -30,3 +30,9 @@ Repository = "https://github.com/letuan/terminal-workspace.git"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.uv]
+package = false
+
+[tool.hatch.build.targets.wheel]
+packages = ["cyber_dashboard.py", "mascot_engine.py"]
