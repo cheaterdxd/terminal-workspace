@@ -164,6 +164,38 @@ def cmd_log():
     except Exception as e:
         print(f"{YELLOW}Lỗi đọc file: {e}{RESET}")
 
+def cmd_library():
+    """Xem danh sách và thống kê các bài phân tích AI trong thư viện."""
+    lib_dir = os.path.expanduser("~/work_logs/library")
+    index_file = os.path.join(lib_dir, "library_index.json")
+    items = []
+    if os.path.exists(index_file):
+        try:
+            import json
+            with open(index_file, "r", encoding="utf-8") as f:
+                items = json.load(f)
+        except Exception:
+            pass
+
+    if not items:
+        face = mascot_engine.get_random_face("idle")
+        print_speech_bubble(face, "Thư viện AI hiện chưa có bài phân tích nào!", subtitle="💡 Trong dashboard, bấm phím [v] hoặc [x] để tự động lưu bài nhé!")
+        return
+
+    face = mascot_engine.get_random_face("celebrate")
+    print_speech_bubble(face, f"Thư viện tri thức an ninh mạng đang có {len(items)} bài phân tích!", subtitle="📚 AI Threat Intel Knowledge Base")
+    print(f"  {BOLD}{CYAN}5 bài phân tích gần nhất:{RESET}")
+    for item in items[:5]:
+        vendor = item.get("vendor", "Intel")
+        badge = item.get("mode_badge", "BÁO CÁO")
+        title = item.get("title", "")
+        date = item.get("created_at", "")[:10]
+        cves = item.get("cves", [])
+        cve_str = f" {YELLOW}({', '.join(cves[:2])}){RESET}" if cves else ""
+        print(f"    {DIM}[{date}]{RESET} {MAGENTA}[{badge}]{RESET} {CYAN}[{vendor}]{RESET} {WHITE}{title[:55]}{RESET}{cve_str}")
+    
+    print(f"\n  {DIM}💡 Mẹo: Mở dashboard bấm phím [l] để duyệt đọc toàn văn, hoặc mở ~/work_logs/library/{RESET}\n")
+
 def cmd_style(style_name: str):
     """Đổi phong cách linh vật pixel."""
     style_name = (style_name or "").lower().strip()
@@ -288,6 +320,8 @@ def main():
     subparsers.add_parser("plan", help="Xem kế hoạch làm việc cho ngày mai")
     subparsers.add_parser("log", help="Xem nhật ký làm việc gần nhất")
     subparsers.add_parser("logs", help="Xem nhật ký làm việc gần nhất")
+    subparsers.add_parser("lib", help="Xem thư viện các bài phân tích AI")
+    subparsers.add_parser("library", help="Xem thư viện các bài phân tích AI")
     
     args = parser.parse_args()
     
@@ -305,6 +339,8 @@ def main():
         cmd_plan()
     elif args.command in ("log", "logs"):
         cmd_log()
+    elif args.command in ("lib", "library"):
+        cmd_library()
     else:
         style = getattr(args, "style", None)
         cmd_hello(style=style)

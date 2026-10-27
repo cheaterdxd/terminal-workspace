@@ -49,6 +49,8 @@ QUOTES_FILE = os.path.join(BASE_DIR, "quotes.json")
 AI_PROMPTS_FILE = os.path.join(BASE_DIR, "ai_prompts.json")
 AI_PROMPTS_EXAMPLE_FILE = os.path.join(BASE_DIR, "ai_prompts.example.json")
 USER_AI_PROMPTS_FILE = os.path.expanduser("~/.config/terminal-workspace/ai_prompts.json")
+LIBRARY_DIR = os.path.expanduser("~/work_logs/library")
+LIBRARY_INDEX_FILE = os.path.join(LIBRARY_DIR, "library_index.json")
 
 FEEDS = [
     {
@@ -539,6 +541,159 @@ def save_plan(items: list[dict]):
         pass
 
 # ------------------------------------------------------------------------------
+# AI Threat Intel Knowledge Base (Library Storage & Indexing)
+# ------------------------------------------------------------------------------
+def ensure_library_dir():
+    os.makedirs(LIBRARY_DIR, exist_ok=True)
+
+def load_library_index() -> list[dict]:
+    """Tải danh sách bài phân tích đã lưu từ chỉ mục library_index.json."""
+    if not os.path.exists(LIBRARY_INDEX_FILE):
+        return []
+    try:
+        with open(LIBRARY_INDEX_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+def save_library_index(items: list[dict]):
+    """Lưu danh sách chỉ mục vào library_index.json."""
+    ensure_library_dir()
+    try:
+        with open(LIBRARY_INDEX_FILE, "w", encoding="utf-8") as f:
+            json.dump(items, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+def slugify_text(text: str, max_len: int = 35) -> str:
+    """Tạo slug an toàn cho tên file từ tiêu đề."""
+    s = text.lower()
+    s = re.sub(r"[àáạảãâầấậẩẫăằắặẳẵ]", "a", s)
+    s = re.sub(r"[èéẹẻẽêềếệểễ]", "e", s)
+    s = re.sub(r"[ìíịỉĩ]", "i", s)
+    s = re.sub(r"[òóọỏõôồốộổỗơờớợởỡ]", "o", s)
+    s = re.sub(r"[ùúụủũưừứựửữ]", "u", s)
+    s = re.sub(r"[ỳýỵỷỹ]", "y", s)
+    s = re.sub(r"[đ]", "d", s)
+    s = re.sub(r"[^a-z0-9\-]+", "-", s)
+    s = re.sub(r"-+", "-", s).strip("-")
+    return s[:max_len].strip("-") or "report"
+
+def save_to_library(article: dict, text: str, mode_label: str, tool: str = "agy", is_general: bool = False) -> str:
+    """Lưu bài phân tích AI vào thư mục library và cập nhật library_index.json."""
+    ensure_library_dir()
+    now = datetime.now()
+    date_str = now.strftime("%Y-%m-%d")
+    time_str = now.strftime("%Y-%m-%d %H:%M")
+
+    title = article.get("title", "").strip() or "Bản ghi phân tích AI"
+    vendor = article.get("vendor", "").strip() or ("AI Q&A" if is_general else "Threat Intel")
+    link = article.get("link", "").strip()
+
+    # Nhận diện mã CVE
+    all_content = f"{title} {article.get('desc', '')} {text}"
+    cves = sorted(list(set(re.findall(r"CVE-\d{4}-\d{4,7}", all_content, re.IGNORECASE))))
+
+    # Xác định mode slug
+    if "sâu" in mode_label.lower() or "deep" in mode_label.lower():
+        mode_slug = "deep"
+        mode_badge = "PHÂN TÍCH SÂU"
+    elif "tóm tắt" in mode_label.lower() or "summary" in mode_label.lower():
+        mode_slug = "summary"
+        mode_badge = "TÓM TẮT"
+    else:
+        mode_slug = "qa"
+        mode_badge = "HỎI ĐÁP"
+
+    # Đặt tên file theo chuẩn YYYY-MM-DD_<cve_or_slug>_<mode>.md
+    if cves:
+        base_slug = cves[0].lower()
+    else:
+        base_slug = slugify_text(title)
+
+    filename = f"{date_str}_{base_slug}_{mode_slug}.md"
+    filepath = os.path.join(LIBRARY_DIR, filename)
+
+    # Viết nội dung Markdown kèm YAML Frontmatter
+    md_content = (
+        f"---\n"
+        f"title: \"{title}\"\n"
+        f"vendor: \"{vendor}\"\n"
+        f"link: \"{link}\"\n"
+        f"mode: \"{mode_slug}\"\n"
+        f"tool: \"{tool}\"\n"
+        f"created_at: \"{time_str}\"\n"
+        f"cve: {json.dumps(cves)}\n"
+        f"---\n\n"
+        f"# {title}\n\n"
+        f"**Nguồn:** {vendor}  \n"
+        f"**Thời gian:** {time_str}  \n"
+        f"**Công cụ AI:** {tool.upper()} ({mode_badge})  \n"
+    )
+    if link:
+        md_content += f"**Liên kết gốc:** [{link}]({link})  \n"
+    if cves:
+        md_content += f"**Mã CVE liên quan:** {', '.join(cves)}  \n"
+    md_content += f"\n---\n\n{text}\n"
+
+    try:
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(md_content)
+    except Exception:
+        return ""
+
+    # Cập nhật library_index.json
+    index_items = load_library_index()
+    existing_idx = -1
+    for i, item in enumerate(index_items):
+        if link and item.get("link") == link and item.get("mode") == mode_slug:
+            existing_idx = i
+            break
+        elif item.get("filename") == filename:
+            existing_idx = i
+            break
+
+    entry = {
+        "filename": filename,
+        "title": title,
+        "vendor": vendor,
+        "link": link,
+        "mode": mode_slug,
+        "mode_badge": mode_badge,
+        "tool": tool,
+        "created_at": time_str,
+        "cves": cves,
+        "preview": text.strip()[:200]
+    }
+
+    if existing_idx >= 0:
+        index_items[existing_idx] = entry
+    else:
+        index_items.insert(0, entry)
+
+    save_library_index(index_items)
+    return filepath
+
+def delete_from_library(filename: str) -> bool:
+    """Xóa một bài phân tích khỏi thư viện và cập nhật chỉ mục."""
+    filepath = os.path.join(LIBRARY_DIR, filename)
+    deleted = False
+    if os.path.exists(filepath):
+        try:
+            os.remove(filepath)
+            deleted = True
+        except Exception:
+            pass
+
+    items = load_library_index()
+    new_items = [it for it in items if it.get("filename") != filename]
+    if len(new_items) != len(items):
+        save_library_index(new_items)
+        deleted = True
+    return deleted
+
+# ------------------------------------------------------------------------------
 # Custom ListItems (Avoid Textual ID collisions)
 # ------------------------------------------------------------------------------
 class TaskItem(ListItem):
@@ -558,6 +713,11 @@ class NewsListView(ListView):
         event.prevent_default()
         self.focus()
         self.index = self._nodes.index(event.item)
+
+class LibraryItem(ListItem):
+    def __init__(self, item_data: dict, *children, **kwargs):
+        super().__init__(*children, **kwargs)
+        self.item_data = item_data
 
 # ------------------------------------------------------------------------------
 # Modals (Briefing, Wrap-Up, AI Result)
@@ -947,6 +1107,7 @@ class LogsModal(ModalScreen):
 class AIResultModal(ModalScreen):
     BINDINGS = [
         Binding("escape", "dismiss", "Đóng"),
+        Binding("s", "save_library", "Lưu thư viện"),
         Binding("c", "convert_to_task", "Tạo task"),
         Binding("o", "open_link", "Mở web"),
     ]
@@ -974,11 +1135,18 @@ class AIResultModal(ModalScreen):
                     yield Static(title_line)
                 yield Markdown(self.result_text)
             
-            footer_parts = ["[bold cyan][c][/bold cyan] Tạo Task"]
+            footer_parts = ["[bold cyan][s][/bold cyan] Lưu Thư Viện", "[bold cyan][c][/bold cyan] Tạo Task"]
             if self.article.get("link"):
                 footer_parts.append("[bold cyan][o][/bold cyan] Mở Web")
             footer_parts.append("[bold cyan][Esc][/bold cyan] Đóng")
             yield Static(" │ ".join(footer_parts), classes="modal-footer")
+
+    def action_save_library(self):
+        filepath = save_to_library(self.article, self.result_text, self.mode_title, "agy", is_general=self.is_general)
+        if filepath:
+            self.notify(f"Đã lưu vào Thư viện: {os.path.basename(filepath)}", title="Thư Viện AI")
+        else:
+            self.notify("Không thể lưu bài viết vào Thư viện!", title="Lỗi Thư Viện", severity="error")
 
     def action_convert_to_task(self):
         title = self.article.get("title") or self.mode_title or "Ghi chú từ AI"
@@ -1013,6 +1181,173 @@ class CommandResultModal(ModalScreen):
                 yield Static(f"[white]{self.output}[/white]")
             yield Static("[bold cyan][Esc][/bold cyan] Đóng", classes="modal-footer")
 
+class LibraryModal(ModalScreen):
+    BINDINGS = [
+        Binding("escape", "dismiss", "Đóng"),
+        Binding("c", "open_in_code", "Mở VS Code"),
+        Binding("o", "open_web", "Mở Web"),
+        Binding("d", "delete_item", "Xóa bài"),
+        Binding("enter", "open_full", "Xem chi tiết"),
+    ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.items = load_library_index()
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="modal-box lib-modal-box"):
+            yield Label(f"📚 THƯ VIỆN BÀI PHÂN TÍCH AI ({len(self.items)} bài đã lưu)", classes="modal-title")
+            with Horizontal(classes="lib-split-container"):
+                with Vertical(id="lib-sidebar"):
+                    yield Label("[bold cyan]DANH SÁCH BÀI VIẾT[/bold cyan]", classes="lib-col-header")
+                    with ListView(id="lib-list"):
+                        if not self.items:
+                            yield ListItem(Static("[dim]Thư viện trống. Bấm 'v' hoặc 'x' tại bản tin để tự động lưu![/dim]"))
+                        else:
+                            for it in self.items:
+                                badge = it.get("mode_badge", "BÁO CÁO")
+                                vendor = it.get("vendor", "")
+                                date = it.get("created_at", "")[:10]
+                                title = it.get("title", "")
+                                cves = it.get("cves", [])
+                                cve_txt = f" [yellow]{cves[0]}[/yellow]" if cves else ""
+                                label_txt = (
+                                    f"[cyan][{badge}][/cyan] [dim]{date}[/dim]{cve_txt}\n"
+                                    f"[bold white]{title[:34]}[/bold white] [dim]({vendor})[/dim]"
+                                )
+                                yield LibraryItem(it, Static(label_txt))
+
+                with Vertical(id="lib-preview-col"):
+                    yield Label("[bold cyan]NỘI DUNG TOÀN VĂN (MARKDOWN)[/bold cyan]", classes="lib-col-header")
+                    with VerticalScroll(id="lib-preview-scroll"):
+                        first_content = "Thư viện trống. Hãy phân tích bài viết để tự động lưu vào đây."
+                        if self.items:
+                            fp = os.path.join(LIBRARY_DIR, self.items[0].get("filename", ""))
+                            if os.path.exists(fp):
+                                try:
+                                    with open(fp, "r", encoding="utf-8") as f:
+                                        first_content = f.read()
+                                except Exception:
+                                    first_content = self.items[0].get("preview", "")
+                            else:
+                                first_content = self.items[0].get("preview", "")
+                        yield Markdown(first_content, id="lib-preview-md")
+
+            yield Static(
+                "[bold cyan][c][/bold cyan] Mở VS Code │ "
+                "[bold cyan][o][/bold cyan] Mở Link Gốc │ "
+                "[bold cyan][d][/bold cyan] Xóa bài │ "
+                "[bold cyan][Enter][/bold cyan] Xem toàn màn hình │ "
+                "[bold cyan][Esc][/bold cyan] Đóng",
+                classes="modal-footer"
+            )
+
+    def on_list_view_highlighted(self, event: ListView.Highlighted):
+        if event.item and isinstance(event.item, LibraryItem):
+            self._update_preview(event.item.item_data)
+
+    def _update_preview(self, item_data: dict):
+        fn = item_data.get("filename", "")
+        fp = os.path.join(LIBRARY_DIR, fn)
+        content = ""
+        if os.path.exists(fp):
+            try:
+                with open(fp, "r", encoding="utf-8") as f:
+                    content = f.read()
+            except Exception as e:
+                content = f"[red]Lỗi đọc file: {e}[/red]"
+        else:
+            content = item_data.get("preview", "Không tìm thấy nội dung chi tiết.")
+
+        try:
+            preview_md = self.query_one("#lib-preview-md", Markdown)
+            preview_md.update(content)
+        except Exception:
+            pass
+
+    def _get_current_item(self) -> dict:
+        try:
+            lib_list = self.query_one("#lib-list", ListView)
+            if lib_list.highlighted_child and isinstance(lib_list.highlighted_child, LibraryItem):
+                return lib_list.highlighted_child.item_data
+            elif lib_list.children and isinstance(lib_list.children[0], LibraryItem):
+                return lib_list.children[0].item_data
+        except Exception:
+            pass
+        return {}
+
+    def action_open_in_code(self):
+        item = self._get_current_item()
+        if not item:
+            self.app.notify("Chưa chọn bài nào để mở!", title="Thư Viện AI", severity="warning")
+            return
+        fn = item.get("filename", "")
+        fp = os.path.join(LIBRARY_DIR, fn)
+        if os.path.exists(fp):
+            subprocess.Popen(["code", fp], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.app.notify(f"Đang mở trong VS Code: {fn}", title="Thư Viện AI")
+        else:
+            self.app.notify("File không tồn tại trên đĩa!", title="Lỗi Thư Viện", severity="error")
+
+    def action_open_web(self):
+        item = self._get_current_item()
+        link = item.get("link", "")
+        if link:
+            subprocess.Popen(["xdg-open", link], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.app.notify("Đang mở link bài viết trên trình duyệt...", title="Thư Viện AI")
+        else:
+            self.app.notify("Bài này không có liên kết web!", title="Thư Viện AI", severity="warning")
+
+    def action_delete_item(self):
+        item = self._get_current_item()
+        if not item:
+            return
+        fn = item.get("filename", "")
+        if delete_from_library(fn):
+            self.app.notify(f"Đã xóa bài phân tích: {fn}", title="Thư Viện AI")
+            self.items = load_library_index()
+            try:
+                lib_list = self.query_one("#lib-list", ListView)
+                lib_list.clear()
+                if not self.items:
+                    lib_list.append(ListItem(Static("[dim]Thư viện trống.[/dim]")))
+                    self.query_one("#lib-preview-md", Markdown).update("Thư viện hiện tại đang trống.")
+                else:
+                    for it in self.items:
+                        badge = it.get("mode_badge", "BÁO CÁO")
+                        vendor = it.get("vendor", "")
+                        date = it.get("created_at", "")[:10]
+                        title = it.get("title", "")
+                        cves = it.get("cves", [])
+                        cve_txt = f" [yellow]{cves[0]}[/yellow]" if cves else ""
+                        label_txt = (
+                            f"[cyan][{badge}][/cyan] [dim]{date}[/dim]{cve_txt}\n"
+                            f"[bold white]{title[:34]}[/bold white] [dim]({vendor})[/dim]"
+                        )
+                        lib_list.append(LibraryItem(it, Static(label_txt)))
+                    if self.items:
+                        self._update_preview(self.items[0])
+            except Exception:
+                pass
+
+    def action_open_full(self):
+        item = self._get_current_item()
+        if not item:
+            return
+        fn = item.get("filename", "")
+        fp = os.path.join(LIBRARY_DIR, fn)
+        content = ""
+        if os.path.exists(fp):
+            try:
+                with open(fp, "r", encoding="utf-8") as f:
+                    content = f.read()
+            except Exception:
+                content = item.get("preview", "")
+        else:
+            content = item.get("preview", "")
+        dummy_art = {"title": item.get("title", ""), "vendor": item.get("vendor", ""), "link": item.get("link", "")}
+        self.app.push_screen(AIResultModal(dummy_art, content, item.get("mode_badge", "Thư viện")))
+
 class OmniHelpModal(ModalScreen):
     BINDINGS = [
         Binding("escape", "dismiss", "Đóng"),
@@ -1028,6 +1363,7 @@ Bấm `/` bất kỳ lúc nào để mở Omnibar và gõ các lệnh sau:
 
 #### 🤖 1. Trợ Lý AI & Tìm Kiếm Tri Thức
 * `ai: <câu hỏi>` hoặc `hỏi: <câu hỏi>` : Đặt câu hỏi tự do cho trợ lý AI (hoặc gõ tự nhiên: *là gì*, *tại sao*, *làm sao*...)
+* `lib` hoặc `library` (hoặc `Phím l`) : Mở Thư viện bài phân tích AI (Split-view tra cứu & xem Markdown)
 * `prompts` hoặc `ai config` : Mở file cấu hình Prompt AI (`ai_prompts.json`)
 * `cve: <mã>` : Tra cứu lỗ hổng bảo mật trực tiếp trên NVD (VD: `cve: CVE-2024-3094`)
 * `gh: <repo/query>` : Tra cứu kho mã nguồn GitHub (VD: `gh: textualize/textual`)
@@ -1296,6 +1632,61 @@ class CyberDashboardApp(App):
         width: 100%;
         border: tall #38bdf8;
     }
+
+    .lib-modal-box {
+        width: 96%;
+        max-width: 120;
+        height: 90%;
+    }
+
+    .lib-split-container {
+        height: 1fr;
+    }
+
+    #lib-sidebar {
+        width: 38%;
+        height: 1fr;
+        border-right: solid #334155;
+        padding-right: 1;
+    }
+
+    .lib-col-header {
+        height: 1;
+        text-style: bold;
+        color: #38bdf8;
+        border-bottom: solid #1e293b;
+        margin-bottom: 1;
+    }
+
+    #lib-list {
+        height: 1fr;
+        background: #11141c;
+    }
+
+    #lib-list ListItem {
+        padding: 0 1;
+        margin-bottom: 1;
+        border-bottom: solid #1c212d;
+    }
+
+    #lib-list ListItem.-selected {
+        background: #1e293b;
+        border-left: thick #38bdf8;
+    }
+
+    #lib-preview-col {
+        width: 62%;
+        height: 1fr;
+        padding-left: 1;
+    }
+
+    #lib-preview-scroll {
+        height: 1fr;
+        overflow-y: scroll;
+        background: #10131a;
+        padding: 0 1;
+        border: solid #1f2937;
+    }
     """
 
     BINDINGS = [
@@ -1308,6 +1699,7 @@ class CyberDashboardApp(App):
         Binding("o", "open_selected_article", "Mở web"),
         Binding("n", "focus_news", "Bản tin"),
         Binding("t", "focus_tasks", "Công việc"),
+        Binding("l", "open_library", "Thư viện"),
         Binding("b", "open_briefing", "Điểm tin"),
         Binding("m", "open_plan", "Plan ngày mai"),
         Binding("p", "toggle_focus", "Đếm giờ 25p"),
@@ -1334,7 +1726,7 @@ class CyberDashboardApp(App):
 
     def compose(self) -> ComposeResult:
         yield Static(
-            "[bold cyan]🛡️ WORKSPACE[/bold cyan] [dim]│ [k] Phá băng 5p │ [p] Focus 25p │ [b] Điểm tin │ [v] AI Tóm tắt │ [x] AI Phân tích │ [w] Tổng kết │ [/] Omnibar │ [q] Thoát[/dim]",
+            "[bold cyan]🛡️ WORKSPACE[/bold cyan] [dim]│ [k] Phá băng │ [p] Focus │ [b] Điểm tin │ [l] Thư viện │ [v] Tóm tắt │ [x] Phân tích │ [/] Omni │ [q] Thoát[/dim]",
             id="top-bar"
         )
 
@@ -1822,6 +2214,10 @@ class CyberDashboardApp(App):
         """Mở modal xem lại lịch sử các file nhật ký ~/work_logs/."""
         self.push_screen(LogsModal())
 
+    def action_open_library(self):
+        """Mở modal duyệt Thư viện bài phân tích AI (AI Threat Intel Knowledge Base)."""
+        self.push_screen(LibraryModal())
+
     def apply_tomorrow_plan(self) -> int:
         """Nạp toàn bộ công việc trong plan ngày mai vào danh sách task hôm nay."""
         plan_items = load_plan()
@@ -1980,6 +2376,11 @@ class CyberDashboardApp(App):
                 subprocess.Popen(["code", cfg_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             elif shutil.which("xdg-open"):
                 subprocess.Popen(["xdg-open", cfg_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return
+
+        # 0.2 Mở Thư viện bài phân tích AI (AI Knowledge Base)
+        if q.lower() in ["lib", "library", "kb", "thuvien", "thu vien", "intel"]:
+            self.action_open_library()
             return
 
         # 1. Điểm tin đầu ngày
@@ -2466,6 +2867,12 @@ class CyberDashboardApp(App):
     def _on_ai_finish(self, art: dict, ok: bool, text: str, mode_label: str, tool: str, is_general: bool = False):
         detail_box = self.query_one("#detail-box", Static)
         if ok:
+            # Tự động lưu phân tích tin tức vào Thư viện
+            if not is_general:
+                saved_path = save_to_library(art, text, mode_label, tool, is_general=False)
+                if saved_path:
+                    self.notify(f"Đã lưu vào Thư viện: {os.path.basename(saved_path)}", title="Thư Viện AI")
+
             if is_general:
                 header_line = f"[bold cyan]🤖 TRỢ LÝ AI[/bold cyan] [green]({tool.upper()})[/green]\n[italic white]{mode_label}[/italic white]"
             else:
@@ -2474,7 +2881,7 @@ class CyberDashboardApp(App):
             detail_box.update(
                 f"{header_line}\n\n"
                 f"[yellow]{text[:350]}...[/yellow]\n\n"
-                f"[bold green]➔ Bấm [v] hoặc [x] để mở xem toàn bộ │ [Enter/o] Mở link gốc[/bold green]"
+                f"[bold green]➔ Bấm [l] Mở Thư viện │ [v/x] Xem lại │ [Enter/o] Mở link gốc[/bold green]"
             )
             # Mở Pop-up xem toàn văn kết quả Markdown
             self.push_screen(AIResultModal(art, text, mode_label, is_general=is_general))

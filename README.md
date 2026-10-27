@@ -34,6 +34,7 @@ Script sẽ tự động cấu hình môi trường Python UV, Textual UI, profi
       * Bấm `v`: AI CLI tự động tóm tắt bài viết bằng tiếng Việt chuẩn kỹ thuật (sự cố, đối tượng ảnh hưởng, khuyến nghị phòng thủ).
       * Bấm `x`: AI CLI phân tích chuyên sâu (vector tấn công, IoC, biện pháp remediation) qua pop-up Markdown cuộn được.
       * Bấm `c` trong pop-up AI để chuyển bài phân tích thành task hành động ngay lập tức.
+      * **Thư Viện Bài Phân Tích AI (AI Knowledge Base):** Mọi bài tóm tắt (`v`) và phân tích chuyên sâu (`x`) đều được tự động lưu trữ vĩnh viễn thành các file Markdown độc lập tại `~/work_logs/library/` kèm chỉ mục siêu tốc `library_index.json` và cơ chế khử trùng lặp thông minh. Bấm phím `l` (hoặc gõ `lib`/`library` trong Omnibar) để mở giao diện duyệt 2 cột (Split View), hỗ trợ mở bài trong VS Code (`c`), mở web gốc (`o`) và xóa bài (`d`). Với câu hỏi tự do trong Omnibar, bấm `s` trong popup để lưu vào thư viện. Từ terminal ngoài, gõ `buddy lib` để xem nhanh thống kê.
       * **Tùy biến cấu hình AI & Prompt (`ai_prompts.example.json`):** Toàn bộ prompt (`general_qa`, `article_qa`, tóm tắt `summary`, phân tích `deep_analysis`, bẻ nhỏ việc `kickstart`, lập kế hoạch `tomorrow_plan`) cùng các tham số CLI (`agy_effort`, `timeout`, thứ tự ưu tiên CLI) được cung cấp qua bản mẫu `ai_prompts.example.json`. File `ai_prompts.json` đã được đưa vào `.gitignore` để mỗi người dùng có thể tự do chỉnh sửa prompt cá nhân mà không làm bẩn git. Mở nhanh hoặc tự khởi tạo cấu hình bằng cách gõ `prompts` trong Omnibar.
     * **Omnibar Vạn Năng (Trung tâm điều khiển tất cả trong một):** Bấm phím `/` ở bất kỳ đâu để kích hoạt Omnibar:
       * **Trợ lý AI Đa Năng:** Gõ `ai: <câu hỏi>`, `hỏi: <câu hỏi>` hoặc hỏi tự nhiên (`tại sao...`, `là gì...`) để AI giải đáp mọi lĩnh vực; nhắc đến `bài này`, `lỗ hổng này` để AI phân tích theo bài báo. Gõ `prompts` để mở nhanh file cấu hình prompt.
@@ -51,7 +52,7 @@ Script sẽ tự động cấu hình môi trường Python UV, Textual UI, profi
     * **Báo cáo tổng kết ngày & Xuất Markdown (Daily Wrap-up):** Bấm `w` (hoặc gõ `wrapup`) để xem tỷ lệ hoàn thành công việc, danh sách việc dở dang, và bấm `s` để tự động xuất file nhật ký `~/work_logs/daily_YYYY-MM-DD.md`. Gõ `logs` hoặc `history` trong Omnibar để mở bảng xem lại toàn bộ nhật ký các ngày trước.
     * **Trích dẫn định hướng tư duy theo ngữ cảnh (Contextual Quotes):** Tích hợp danh mục trích dẫn chọn lọc (Unix philosophy, Zero Trust, kỷ luật thực thi) xuất hiện đúng lúc khi bắt đầu/kết thúc phiên Focus hoặc khi xuất báo cáo cuối ngày.
     * **Phím tắt điều hướng nhanh:**
-      * `n`: Focus vào Bản tin │ `t`: Focus vào Công việc │ `/`: Focus Omnibar.
+      * `n`: Focus vào Bản tin │ `t`: Focus vào Công việc │ `l`: Thư viện bài phân tích AI │ `/`: Focus Omnibar.
       * `b`: Điểm tin đầu ngày │ `m`: Plan ngày mai │ `k`: Phá băng 5p │ `p` / `P`: Bật / Tắt Focus │ `w`: Tổng kết ngày.
       * `v`: AI Tóm tắt tiếng Việt │ `x`: AI Phân tích chuyên sâu │ `Enter` / `o`: Mở web.
       * `q`: Thoát dashboard.
